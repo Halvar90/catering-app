@@ -69,10 +69,10 @@ export default function Home() {
           <div className="space-y-6">
             <div className="text-center mb-8">
               <h1 className="text-4xl font-bold text-primary-600 dark:text-primary-400 mb-2">
-                Catering Manager
+                Kochlöffel
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
-                Deine professionelle Catering-Verwaltung
+                Catering & Events
               </p>
             </div>
 
@@ -171,7 +171,7 @@ export default function Home() {
             >
               <HomeIcon className="w-6 h-6" />
               <span className="font-semibold text-lg hidden sm:inline">
-                Catering Manager
+                Kochlöffel
               </span>
             </button>
           )}

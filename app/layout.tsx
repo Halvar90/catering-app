@@ -5,13 +5,13 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Catering Manager',
-  description: 'Professionelle Catering-Verwaltung',
+  title: 'Kochlöffel Catering',
+  description: 'Professionelle Catering-Verwaltung für Kochlöffel',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Catering Manager',
+    title: 'Kochlöffel',
   },
   icons: {
     icon: '/icon-192.png',

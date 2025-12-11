@@ -1,7 +1,7 @@
 {
-  "name": "Catering Manager",
-  "short_name": "Catering",
-  "description": "Professionelle Catering-Verwaltung mit Rezepten, Preiskalkulation und Einkaufslisten",
+  "name": "Kochlöffel Catering",
+  "short_name": "Kochlöffel",
+  "description": "Professionelle Catering-Verwaltung für Kochlöffel",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
