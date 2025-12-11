@@ -107,6 +107,12 @@ export default function IngredientsList() {
           ))}
         </div>
       )}
+
+      {/* Add Ingredient Modal */}
+      <AddIngredientModal 
+        isOpen={showAddModal} 
+        onClose={() => setShowAddModal(false)} 
+      />
     </div>
   );
 }
@@ -147,12 +153,6 @@ function IngredientItem({ ingredient }: { ingredient: any }) {
           </button>
         </div>
       </div>
-
-      {/* Add Ingredient Modal */}
-      <AddIngredientModal 
-        isOpen={showAddModal} 
-        onClose={() => setShowAddModal(false)} 
-      />
     </div>
   );
 }
