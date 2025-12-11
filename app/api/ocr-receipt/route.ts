@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         );
         
         // Veryfi verarbeitet die URL direkt
-        const response = await veryfiClient.process_document_url(imageUrl);
+        const response = await veryfiClient.process_document_from_url(imageUrl);
 
         if (response) {
           veryfiResult = response;
