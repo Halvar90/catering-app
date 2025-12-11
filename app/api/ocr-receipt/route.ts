@@ -72,6 +72,7 @@ export async function POST(request: Request) {
         id: crypto.randomUUID(),
         storeName: parsedData.storeName,
         totalAmount: parsedData.totalAmount,
+        purchaseDate: parsedData.purchaseDate,
         rawText: extractedText,
       },
       ingredients,
@@ -89,6 +90,7 @@ export async function POST(request: Request) {
 function parseReceiptText(text: string): {
   storeName: string;
   totalAmount: number;
+  purchaseDate: string | null;
   items: Array<{
     name: string;
     price: number;
@@ -100,7 +102,7 @@ function parseReceiptText(text: string): {
 
   // Erkenne Laden-Namen (meist in den ersten Zeilen)
   let storeName = 'Unbekannt';
-  const storePatterns = ['REWE', 'EDEKA', 'ALDI', 'LIDL', 'KAUFLAND', 'PENNY', 'NETTO'];
+  const storePatterns = ['REWE', 'EDEKA', 'ALDI', 'LIDL', 'KAUFLAND', 'PENNY', 'NETTO', 'DM', 'ROSSMANN', 'MÜLLER'];
   for (const line of lines.slice(0, 10)) {
     for (const pattern of storePatterns) {
       if (line.toUpperCase().includes(pattern)) {
@@ -111,9 +113,51 @@ function parseReceiptText(text: string): {
     if (storeName !== 'Unbekannt') break;
   }
 
+  // Erkenne Datum
+  let purchaseDate: string | null = null;
+  // Patterns: DD.MM.YYYY, DD.MM.YY, YYYY-MM-DD
+  const datePatterns = [
+    /(\d{2})\.(\d{2})\.(\d{4})/,
+    /(\d{2})\.(\d{2})\.(\d{2})/,
+    /(\d{4})-(\d{2})-(\d{2})/
+  ];
+
+  for (const line of lines) {
+    for (const pattern of datePatterns) {
+      const match = line.match(pattern);
+      if (match) {
+        try {
+          let day, month, year;
+          if (pattern.source.includes('d{4}-')) {
+             // YYYY-MM-DD
+             year = parseInt(match[1]);
+             month = parseInt(match[2]) - 1;
+             day = parseInt(match[3]);
+          } else {
+             // DD.MM.YYYY or DD.MM.YY
+             day = parseInt(match[1]);
+             month = parseInt(match[2]) - 1;
+             year = parseInt(match[3]);
+             if (year < 100) year += 2000; // Assume 20xx
+          }
+          
+          const date = new Date(year, month, day);
+          // Basic validation
+          if (!isNaN(date.getTime()) && year > 2000 && year < 2100) {
+             purchaseDate = date.toISOString();
+             break;
+          }
+        } catch (e) {
+          // Ignore invalid dates
+        }
+      }
+    }
+    if (purchaseDate) break;
+  }
+
   // Erkenne Gesamtbetrag (SUMME, GESAMT, TOTAL, etc.)
   let totalAmount = 0;
-  const totalPatterns = ['SUMME', 'GESAMT', 'TOTAL', 'BETRAG', 'ZAHLUNG'];
+  const totalPatterns = ['SUMME', 'GESAMT', 'TOTAL', 'BETRAG', 'ZAHLUNG', 'ZU ZAHLEN'];
   for (const line of lines) {
     const upper = line.toUpperCase();
     if (totalPatterns.some(pattern => upper.includes(pattern))) {
@@ -138,6 +182,7 @@ function parseReceiptText(text: string): {
         line.toUpperCase().includes('RÜCKGELD') ||
         line.toUpperCase().includes('UST') ||
         line.toUpperCase().includes('KARTE') ||
+        line.toUpperCase().includes('DATUM') ||
         line.length < 3) {
       continue;
     }
@@ -190,7 +235,7 @@ function parseReceiptText(text: string): {
         const [, name, priceStr] = simpleMatch;
         const price = parseFloat(priceStr.replace(',', '.'));
         
-        const ignoreWords = ['PFAND', 'TÜTE', 'RABATT', 'PLUS', 'SUMME'];
+        const ignoreWords = ['PFAND', 'TÜTE', 'RABATT', 'PLUS', 'SUMME', 'DATUM', 'UHRZEIT'];
         if (!ignoreWords.some(word => name.toUpperCase().includes(word)) && name.length > 2) {
           items.push({ name: name.trim(), price, quantity: 1, unit: 'Stück' });
         }
@@ -201,6 +246,7 @@ function parseReceiptText(text: string): {
   return {
     storeName,
     totalAmount,
+    purchaseDate,
     items,
   };
 }

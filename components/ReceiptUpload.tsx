@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Upload, Camera, Loader2, Plus, Trash2, CheckCircle, X, AlertCircle, FileText, Save } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, Camera, Loader2, Plus, Trash2, CheckCircle, X, AlertCircle, FileText, Save, Pencil } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { tx } from '@instantdb/react';
 
@@ -33,6 +33,7 @@ export default function ReceiptUpload() {
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [receiptName, setReceiptName] = useState('');
   const [progress, setProgress] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +41,26 @@ export default function ReceiptUpload() {
   // Fetch existing receipts
   const { data: receiptsData } = db.useQuery({ receipts: {} });
   const receipts = receiptsData?.receipts || [];
+
+  // Fetch ingredients for editing
+  const { data: editIngredientsData } = db.useQuery(
+    editingId ? { ingredients: { $: { where: { receiptId: editingId } } } } : {}
+  );
+
+  useEffect(() => {
+    if (editingId && editIngredientsData?.ingredients) {
+      const items = editIngredientsData.ingredients.map((ing: any) => ({
+        id: ing.id,
+        name: ing.name,
+        quantity: ing.unitSize,
+        unit: ing.unitType,
+        pricePerUnit: ing.pricePerUnit,
+        totalPrice: ing.pricePerUnit * ing.unitSize,
+        shop: ing.shop,
+      }));
+      setScannedItems(items);
+    }
+  }, [editIngredientsData, editingId]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -102,7 +123,7 @@ export default function ReceiptUpload() {
           if (!lastReceiptData && data.receipt) {
             lastReceiptData = {
               ...data.receipt,
-              purchaseDate: new Date().toISOString(),
+              purchaseDate: data.receipt.purchaseDate || new Date().toISOString(),
               imageUrl: url // Keep the first image URL as main reference
             };
           }
@@ -153,6 +174,30 @@ export default function ReceiptUpload() {
     }
   };
 
+  const handleEditReceipt = (receipt: any) => {
+    setEditingId(receipt.id);
+    setReceiptData({
+      id: receipt.id,
+      storeName: receipt.storeName,
+      totalAmount: receipt.totalAmount,
+      purchaseDate: receipt.purchaseDate,
+      imageUrl: receipt.imageUrl,
+    });
+    setReceiptName(receipt.name);
+    setShowReviewModal(true);
+  };
+
+  const handleDeleteReceipt = async (id: string) => {
+    if (confirm('Möchten Sie diesen Bon wirklich löschen?')) {
+      try {
+        await db.transact([tx.receipts[id].delete()]);
+      } catch (err) {
+        console.error('Delete error:', err);
+        setError('Fehler beim Löschen');
+      }
+    }
+  };
+
   const handleSaveReceipt = async () => {
     if (!receiptName) {
       setError('Bitte einen Namen für den Bon eingeben');
@@ -164,7 +209,7 @@ export default function ReceiptUpload() {
       const receiptId = receiptData?.id || crypto.randomUUID();
       
       // 1. Save Receipt
-      await db.transact([
+      const txs = [
         tx.receipts[receiptId].update({
           name: receiptName,
           storeName: receiptData?.storeName || 'Unbekannt',
@@ -173,31 +218,42 @@ export default function ReceiptUpload() {
           processed: true,
           imageUrl: receiptData?.imageUrl || '',
         })
-      ]);
+      ];
 
-      // 2. Save Ingredients
-      const ingredientTxs = scannedItems.map(item => 
-        tx.ingredients[item.id].update({
-          name: item.name,
-          shop: item.shop,
-          pricePerUnit: item.pricePerUnit,
-          unitSize: item.quantity,
-          unitType: item.unit,
-          category: 'Sonstiges',
-          pricePerKg: item.unit === 'kg' ? item.pricePerUnit / item.quantity : 0,
-          lastPurchaseDate: new Date().toISOString(),
-          receiptId: receiptId, // Link to receipt
-        })
-      );
-
-      if (ingredientTxs.length > 0) {
-        await db.transact(ingredientTxs);
+      // 2. Handle Ingredients
+      // If editing, find items to delete
+      if (editingId && editIngredientsData?.ingredients) {
+        const currentIds = new Set(scannedItems.map(i => i.id));
+        const toDelete = editIngredientsData.ingredients.filter((i: any) => !currentIds.has(i.id));
+        toDelete.forEach((i: any) => {
+          txs.push(tx.ingredients[i.id].delete());
+        });
       }
+
+      // Update/Create ingredients
+      scannedItems.forEach(item => {
+        txs.push(
+          tx.ingredients[item.id].update({
+            name: item.name,
+            shop: item.shop,
+            pricePerUnit: item.pricePerUnit,
+            unitSize: item.quantity,
+            unitType: item.unit,
+            category: 'Sonstiges',
+            pricePerKg: item.unit === 'kg' ? item.pricePerUnit / item.quantity : 0,
+            lastPurchaseDate: new Date().toISOString(),
+            receiptId: receiptId,
+          })
+        );
+      });
+
+      await db.transact(txs);
 
       setSuccess(true);
       setShowReviewModal(false);
       setScannedItems([]);
       setReceiptData(null);
+      setEditingId(null);
       
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
@@ -327,13 +383,35 @@ export default function ReceiptUpload() {
             <div className="sticky top-0 bg-white dark:bg-gray-800 border-b dark:border-gray-700 p-6 flex items-center justify-between z-10">
               <div className="flex-1">
                 <h3 className="text-2xl font-bold dark:text-white mb-2">Kassenbon prüfen</h3>
-                <input
-                  type="text"
-                  value={receiptName}
-                  onChange={(e) => setReceiptName(e.target.value)}
-                  placeholder="Bonname eingeben..."
-                  className="w-full max-w-md px-4 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
-                />
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    value={receiptName}
+                    onChange={(e) => setReceiptName(e.target.value)}
+                    placeholder="Bonname eingeben..."
+                    className="w-full max-w-md px-4 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                  />
+                  <div className="grid grid-cols-2 gap-4 max-w-md">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Laden</label>
+                      <input
+                        type="text"
+                        value={receiptData?.storeName || ''}
+                        onChange={(e) => setReceiptData(prev => prev ? { ...prev, storeName: e.target.value } : null)}
+                        className="w-full px-4 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kaufdatum</label>
+                      <input
+                        type="date"
+                        value={receiptData?.purchaseDate ? new Date(receiptData.purchaseDate).toISOString().split('T')[0] : ''}
+                        onChange={(e) => setReceiptData(prev => prev ? { ...prev, purchaseDate: new Date(e.target.value).toISOString() } : null)}
+                        className="w-full px-4 py-2 border dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
               <button
                 onClick={() => setShowReviewModal(false)}
@@ -480,8 +558,26 @@ export default function ReceiptUpload() {
                     {new Date(receipt.purchaseDate).toLocaleDateString('de-DE')}
                   </div>
                 </div>
-                <div className="text-lg font-bold text-primary-600">
-                  {receipt.totalAmount?.toFixed(2)} €
+                <div className="flex items-center gap-4">
+                  <div className="text-lg font-bold text-primary-600">
+                    {receipt.totalAmount?.toFixed(2)} €
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditReceipt(receipt)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"
+                      title="Bearbeiten"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteReceipt(receipt.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                      title="Löschen"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
