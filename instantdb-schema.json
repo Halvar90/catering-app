@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "entities": {
+    "ingredients": {
+      "attributes": {
+        "name": { "type": "string", "required": true },
+        "category": { "type": "string" },
+        "shop": { "type": "string", "required": true },
+        "pricePerUnit": { "type": "number", "required": true },
+        "unitSize": { "type": "number", "required": true },
+        "unitType": { "type": "string", "required": true },
+        "pricePerKg": { "type": "number" },
+        "pricePerLiter": { "type": "number" },
+        "pricePerPiece": { "type": "number" },
+        "pricePerHundredGram": { "type": "number" },
+        "lastPurchaseDate": { "type": "string" },
+        "receiptImageUrl": { "type": "string" },
+        "currentStock": { "type": "number", "required": false },
+        "minStock": { "type": "number", "required": false },
+        "expiryDate": { "type": "string", "required": false },
+        "notes": { "type": "string", "required": false }
+      }
+    },
+    "recipes": {
+      "attributes": {
+        "name": { "type": "string", "required": true },
+        "description": { "type": "string" },
+        "portions": { "type": "number", "required": true },
+        "prepTime": { "type": "number" },
+        "category": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "allergens": { "type": "string" },
+        "notes": { "type": "string" },
+        "totalCostPerPortion": { "type": "number" },
+        "suggestedMargin": { "type": "number" },
+        "customMargin": { "type": "number" },
+        "sellingPricePerPortion": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "links": {
+        "ingredients": {
+          "type": "many",
+          "through": "recipeIngredients"
+        }
+      }
+    },
+    "recipeIngredients": {
+      "attributes": {
+        "amount": { "type": "number", "required": true },
+        "unit": { "type": "string", "required": true }
+      },
+      "links": {
+        "recipe": {
+          "type": "one",
+          "entity": "recipes",
+          "required": true
+        },
+        "ingredient": {
+          "type": "one",
+          "entity": "ingredients",
+          "required": true
+        }
+      }
+    },
+    "shoppingList": {
+      "attributes": {
+        "amount": { "type": "number", "required": true },
+        "unit": { "type": "string", "required": true },
+        "checked": { "type": "boolean", "required": true },
+        "shop": { "type": "string" },
+        "estimatedPrice": { "type": "number" },
+        "addedAt": { "type": "string" },
+        "priority": { "type": "string" }
+      },
+      "links": {
+        "ingredient": {
+          "type": "one",
+          "entity": "ingredients",
+          "required": true
+        }
+      }
+    },
+    "receipts": {
+      "attributes": {
+        "imageUrl": { "type": "string", "required": true },
+        "storeName": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "purchaseDate": { "type": "string", "required": true },
+        "processed": { "type": "boolean", "required": true },
+        "rawOcrText": { "type": "string" }
+      }
+    }
+  }
+}

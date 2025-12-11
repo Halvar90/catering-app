@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<copilot-prompts>
+  <info>
+    Diese XML-Datei enthält strukturierte Prompts für GitHub Copilot.
+    Kopiere den gewünschten Prompt-Inhalt in deine Code-Dateien als Kommentar.
+  </info>
+
+  <!-- FEATURE 1: REZEPT-UPLOAD MIT OCR -->
+  <prompt id="recipe-ocr">
+    <title>Rezept-Upload mit automatischer Texterkennung</title>
+    <description>
+      Erstelle eine Komponente, die Rezept-Fotos hochladen kann und automatisch den Text extrahiert.
+      Die Rezepte sollen IMMER das gleiche Format haben.
+      Nutze OCR.space API (kostenlos) oder Tesseract.js wie bei den Kassenbons.
+    </description>
+    <instructions>
+      <step>
+        Erstelle eine neue Komponente: components/RecipeUpload.tsx
+        - Upload-Funktion für Fotos (ähnlich wie ReceiptUpload)
+        - OCR via OCR.space API oder Tesseract.js zum Extrahieren von:
+          * Rezeptname
+          * Portionen
+          * Zutaten mit Mengen
+          * Zubereitungsschritte
+          * Zubereitungszeit
+        - Automatisches Speichern in InstantDB
+      </step>
+      <step>
+        Erstelle API Route: app/api/ocr-recipe/route.ts
+        - Nimmt Bild-URL entgegen
+        - Nutze das gleiche OCR-System wie bei Kassenbons (OCR.space oder Tesseract)
+        - Parse-Funktion für Rezept-Format:
+          "Extrahiere aus diesem Rezept:
+           - Name (erste Zeile)
+           - Portionen (Zahl)
+           - Zutaten-Liste mit Mengen
+           - Schritte als nummerierte Liste
+           - Zeit in Minuten"
+        - Strukturierte Daten zurückgeben
+      </step>
+      <step>
+        Rezeptformat standardisieren:
+        - Template: 
+          [Rezeptname]
+          Portionen: [X]
+          Zeit: [X] Min
+          
+          Zutaten:
+          - [Menge] [Einheit] [Name]
+          
+          Zubereitung:
+          1. [Schritt]
+          2. [Schritt]
+        - Validierung der Pflichtfelder
+      </step>
+    </instructions>
+    <requirements>
+      - TypeScript verwenden
+      - Fehlerbehandlung für OCR-Fehler
+      - Loading States während OCR
+      - Erfolgsbestätigung nach Import
+      - InstantDB transact() für Speicherung
+      - Kostenlose OCR wie bei Kassenbons (kein paid API)
+    </requirements>
+  </prompt>
+
+  <!-- FEATURE 2: AI-BILDGENERIERUNG FÜR REZEPTE -->
+  <prompt id="recipe-image-generation">
+    <title>Kostenlose Rezept-Bilder</title>
+    <description>
+      Füge automatisch schöne Food-Bilder zu Rezepten hinzu - komplett kostenlos!
+      Nutze Unsplash API (50 requests/Stunde kostenlos) oder manuelle Uploads.
+    </description>
+    <instructions>
+      <step>
+        Option A: Unsplash Integration (Empfohlen für kostenlose Fotos)
+        - Installiere: npm install unsplash-js
+        - Registriere auf https://unsplash.com/developers (kostenlos)
+        - Erstelle API Route: app/api/search-recipe-image/route.ts
+        - Input: Rezeptname, Hauptzutaten
+        - Suche auf Unsplash nach passenden Food-Fotos
+        - Query: "[hauptzutat] food photography"
+        - Gibt hochwertige Bild-URLs zurück
+        - Speichere Unsplash-URL direkt (kein Upload nötig)
+      </step>
+      <step>
+        Option B: Manueller Upload (Fallback)
+        - Button "Eigenes Bild hochladen"
+        - Nutze existierenden Upload-Flow
+        - Speichere in Vercel Blob
+        - Aktualisiere recipe.imageUrl
+      </step>
+      <step>
+        UI Implementation:
+        - In RecipesList: "Bild hinzufügen" Button
+        - Modal mit zwei Optionen:
+          1. "Automatisch suchen" (Unsplash)
+          2. "Eigenes hochladen"
+        - Vorschau-Galerie bei Unsplash-Suche
+        - User wählt Lieblingsbild aus
+      </step>
+      <step>
+        Speicherung:
+        - db.transact() um recipe.imageUrl zu aktualisieren
+        - Bei Unsplash: Speichere auch Fotografen-Credit
+        - Zeige Credit unter Bild: "Foto von [Name] auf Unsplash"
+      </step>
+    </instructions>
+    <requirements>
+      - Unsplash API: 50 requests/Stunde (kostenlos)
+      - Keine Bildgenerierungs-KI nötig (zu teuer)
+      - Fallback auf manuelle Uploads
+      - Fotografen-Attribution bei Unsplash (Pflicht)
+      - Loading States während Suche
+      - Fehlerbehandlung wenn keine Bilder gefunden
+    </requirements>
+    <code_example>
+      // Unsplash Integration Beispiel:
+      import { createApi } from 'unsplash-js';
+      
+      const unsplash = createApi({
+        accessKey: process.env.UNSPLASH_ACCESS_KEY!,
+      });
+      
+      const result = await unsplash.search.getPhotos({
+        query: `${recipeName} food`,
+        perPage: 10,
+        orientation: 'landscape',
+      });
+      
+      return result.response?.results.map(photo => ({
+        url: photo.urls.regular,
+        author: photo.user.name,
+        authorUrl: photo.user.links.html,
+      }));
+    </code_example>
+  </prompt>
+
+  <!-- FEATURE 3: REZEPT ZU EINKAUFSLISTE -->
+  <prompt id="recipe-to-shopping">
+    <title>Rezept-Zutaten zur Einkaufsliste hinzufügen</title>
+    <description>
+      User wählt Rezept aus, gibt Portionenzahl ein, und alle Zutaten werden
+      automatisch zur Einkaufsliste mit korrekten Mengen hinzugefügt.
+    </description>
+    <instructions>
+      <step>
+        In RecipesList.tsx erweitern:
+        - "Zur Einkaufsliste" Button
+        - Modal mit Portionen-Eingabe
+        - Zeigt berechnete Mengen für alle Zutaten
+        - "Hinzufügen" Button
+      </step>
+      <step>
+        Funktionalität implementieren:
+        - Berechne neue Mengen basierend auf Portionen
+          Formel: neue_menge = (zutat.amount / rezept.portions) * gewünschte_portionen
+        - Prüfe ob Zutat bereits in Einkaufsliste:
+          * Ja: Addiere Menge
+          * Nein: Neuer Eintrag
+        - Schätze Preis basierend auf ingredient.pricePerUnit
+      </step>
+      <step>
+        InstantDB Updates:
+        - Verwende db.transact() für alle Änderungen
+        - Aktualisiere oder erstelle shoppingList-Einträge
+        - Verknüpfe mit ingredient über Link
+      </step>
+    </instructions>
+    <requirements>
+      - Einheiten-Konvertierung (z.B. g zu kg wenn > 1000)
+      - Runden auf sinnvolle Werte (nicht 1.333333g)
+      - Bestätigung nach Hinzufügen
+      - Option: Inventar abziehen wenn vorhanden
+    </requirements>
+  </prompt>
+
+  <!-- FEATURE 4: STATISTIKEN DASHBOARD -->
+  <prompt id="statistics-dashboard">
+    <title>Statistiken & Analytics Dashboard</title>
+    <description>
+      Übersicht über Kosten, häufigste Zutaten, Rezepte, Profit-Entwicklung.
+    </description>
+    <instructions>
+      <step>
+        Erstelle components/Dashboard.tsx:
+        - Cards für Key Metrics:
+          * Gesamtkosten (aktueller Monat)
+          * Anzahl Rezepte
+          * Durchschnittliche Marge
+          * Meistverwendete Zutaten (Top 5)
+        - Charts (mit Recharts):
+          * Kostenentwicklung über Zeit
+          * Rezepte nach Kategorie
+          * Profit-Margin Verteilung
+      </step>
+      <step>
+        Daten-Aggregation:
+        - Query alle ingredients, recipes, receipts
+        - Berechne Statistiken:
+          * Gesamtausgaben = sum(ingredient.pricePerUnit)
+          * Häufigste Zutaten = count in recipeIngredients
+          * Durchschnittliche Marge = avg(recipe.customMargin)
+        - Gruppiere nach Zeiträumen (Monat, Woche)
+      </step>
+      <step>
+        Integriere in Navigation:
+        - Neuer Tab "Statistiken"
+        - Icon: BarChart3 von lucide-react
+        - Zeige Dashboard auf Home-Screen als Widget
+      </step>
+    </instructions>
+    <requirements>
+      - Recharts für Visualisierungen nutzen
+      - Responsive Design für mobile
+      - Date-Range Picker für Zeitfilter
+      - Export als PDF möglich (später)
+    </requirements>
+  </prompt>
+
+  <!-- FEATURE 5: MANUELLES HINZUFÜGEN VON ZUTATEN -->
+  <prompt id="add-ingredient-manually">
+    <title>Zutat manuell hinzufügen</title>
+    <description>
+      Modal-Formular zum manuellen Erstellen von Zutaten.
+    </description>
+    <instructions>
+      <step>
+        Erstelle components/AddIngredientModal.tsx:
+        - Formular mit Feldern:
+          * Name (Pflicht)
+          * Kategorie (Select: Gemüse, Fleisch, Milchprodukte, etc.)
+          * Geschäft (Text oder Select)
+          * Preis (Number)
+          * Menge (Number)
+          * Einheit (Select: g, kg, ml, l, Stück)
+          * Optional: Bestand, Min-Bestand, MHD, Notizen
+        - Validierung aller Eingaben
+        - Submit Button
+      </step>
+      <step>
+        Logik implementieren:
+        - Berechne Preiskonversionen mit calculatePriceConversions()
+        - Erstelle neuen DB-Eintrag mit db.transact()
+        - Schließe Modal nach Erfolg
+        - Zeige Erfolgsbestätigung
+      </step>
+      <step>
+        Integriere in IngredientsList:
+        - "Zutat hinzufügen" Button öffnet Modal
+        - State für Modal-Sichtbarkeit
+      </step>
+    </instructions>
+    <requirements>
+      - Form-Validierung vor Submit
+      - Fehlerbehandlung bei DB-Fehler
+      - Auto-Vervollständigung für Kategorien
+      - Option: Foto hochladen für Zutat
+    </requirements>
+  </prompt>
+
+  <!-- FEATURE 6: REZEPT MANUELL ERSTELLEN -->
+  <prompt id="add-recipe-manually">
+    <title>Rezept manuell erstellen</title>
+    <description>
+      Vollständiges Formular zum Erstellen von Rezepten mit Zutaten-Auswahl.
+    </description>
+    <instructions>
+      <step>
+        Erstelle components/AddRecipeModal.tsx:
+        - Multi-Step Formular:
+          1. Grundinfo: Name, Beschreibung, Portionen, Zeit, Kategorie
+          2. Zutaten auswählen:
+             - Searchable Liste aller ingredients
+             - Für jede: Menge und Einheit eingeben
+             - "Weitere Zutat" Button
+          3. Zubereitung: Schritte als Text
+          4. Vorschau mit Kostenberechnung
+        - Navigation zwischen Steps
+      </step>
+      <step>
+        Kostenberechnung:
+        - Verwende calculateRecipeCost() aus utils
+        - Zeige Kosten pro Portion live während Eingabe
+        - Berechne suggestedMargin mit getSuggestedMargin()
+      </step>
+      <step>
+        Speicherung:
+        - Erstelle recipe mit db.transact()
+        - Erstelle alle recipeIngredients mit Links
+        - Optional: Generiere Bild automatisch
+      </step>
+    </instructions>
+    <requirements>
+      - Step-Validierung (nicht weiter ohne Pflichtfelder)
+      - Zutaten-Suche mit Autocomplete
+      - Drag & Drop für Reihenfolge der Schritte
+      - Entwurf speichern möglich
+    </requirements>
+  </prompt>
+
+  <!-- FEATURE 7: SHOPPING LIST OPTIMIERUNGEN -->
+  <prompt id="shopping-list-enhancements">
+    <title>Einkaufsliste Verbesserungen</title>
+    <description>
+      Mobile-Gesten, Sortierung, Notifications.
+    </description>
+    <instructions>
+      <step>
+        Swipe-Gesten für Mobile:
+        - Swipe left auf Item → Zeigt Delete Button
+        - Swipe right auf Item → Markiert als erledigt
+        - Verwende touch events: touchstart, touchmove, touchend
+        - Visuelles Feedback während Swipe
+      </step>
+      <step>
+        Sortierung:
+        - Dropdown für Sort-Optionen:
+          * Nach Laden (Standard)
+          * Nach Priorität
+          * Alphabetisch
+          * Nach Preis
+        - Persistiere Einstellung in localStorage
+      </step>
+      <step>
+        Benachrichtigungen:
+        - "Liste fertig?" Button wenn alle checked
+        - Option: Push Notifications aktivieren (PWA)
+        - Erinnerung für Shopping (optional)
+      </step>
+    </instructions>
+    <requirements>
+      - Touch-freundliche Größen (min 44px)
+      - Smooth Animationen
+      - Haptic Feedback auf unterstützten Geräten
+      - Offline-fähig durch InstantDB
+    </requirements>
+  </prompt>
+
+  <!-- FEATURE 8: INVENTAR BULK-EDIT -->
+  <prompt id="inventory-bulk-edit">
+    <title>Inventar Bulk-Bearbeitung</title>
+    <description>
+      Schnelles Aktualisieren mehrerer Bestände gleichzeitig.
+    </description>
+    <instructions>
+      <step>
+        Erstelle components/BulkInventoryUpdate.tsx:
+        - Liste aller Inventar-Items
+        - Jedes Item hat Input für neue Menge
+        - "Alle aktualisieren" Button
+        - Option: Nach Einkauf automatisch abhaken
+      </step>
+      <step>
+        Nach Kassenbon-Scan:
+        - Zeige Modal: "Inventar aktualisieren?"
+        - Liste alle neuen Zutaten
+        - User kann Mengen anpassen
+        - Button: "Zum Inventar hinzufügen"
+      </step>
+      <step>
+        Batch-Update:
+        - Sammle alle Änderungen
+        - Ein db.transact() für alle Updates
+        - Erfolgsbestätigung mit Anzahl Updates
+      </step>
+    </instructions>
+    <requirements>
+      - Validation für Mengen (nur positive Zahlen)
+      - Undo-Funktion für versehentliche Updates
+      - Zeige Änderungen vor Bestätigung
+    </requirements>
+  </prompt>
+
+  <!-- FEATURE 9: EXPORT FUNKTIONEN -->
+  <prompt id="export-functions">
+    <title>Export als PDF / Excel</title>
+    <description>
+      Exportiere Rezepte, Kostenkalkulationen, Einkaufslisten.
+    </description>
+    <instructions>
+      <step>
+        PDF Export für Rezepte:
+        - Installiere: npm install jspdf
+        - Erstelle utils/pdfExport.ts
+        - Funktion: exportRecipeToPDF(recipe)
+        - Format: Titel, Zutaten, Schritte, Kosten, Marge
+        - Button in RecipeDetailModal
+      </step>
+      <step>
+        Excel Export für Listen:
+        - Installiere: npm install xlsx
+        - Exportiere Einkaufsliste als .xlsx
+        - Spalten: Zutat, Menge, Einheit, Preis, Laden, Erledigt
+        - Download-Button in ShoppingList
+      </step>
+      <step>
+        Kostenkalkulation PDF:
+        - Detail-Report für Rezepte
+        - Tabelle: Zutat | Menge | Einzelpreis | Gesamt
+        - Summen und Margen-Berechnung
+        - Professionelles Layout
+      </step>
+    </instructions>
+    <requirements>
+      - PDFs sollen gut aussehen (Branding, Logo möglich)
+      - Excel mit Formeln für Summen
+      - Download direkt im Browser
+      - Mobile-kompatibel
+    </requirements>
+  </prompt>
+
+  <!-- FEATURE 10: PREISVERGLEICH -->
+  <prompt id="price-comparison">
+    <title>Preisvergleich zwischen Läden</title>
+    <description>
+      Zeige für jede Zutat, wo sie am günstigsten ist.
+    </description>
+    <instructions>
+      <step>
+        Erweitere IngredientsList:
+        - Neue Ansicht: "Preisvergleich"
+        - Gruppiere Zutaten nach Name (nicht Shop)
+        - Für gleiche Zutat: Zeige alle Shops mit Preisen
+        - Highlight: Günstigster Preis in grün
+      </step>
+      <step>
+        Logik für Vergleich:
+        - Normalisiere Namen (Äpfel = Apfel)
+        - Vergleiche pricePerKg oder pricePerLiter
+        - Berechne Ersparnis (teuerster vs. günstigster)
+        - Sortiere nach größter Ersparnis
+      </step>
+      <step>
+        UI Komponente:
+        - Accordion für jede Zutat
+        - Expandiert: Zeigt alle Shops
+        - Icon für "Bester Preis"
+        - Empfehlung: "Spare X€ bei [Shop]"
+      </step>
+    </instructions>
+    <requirements>
+      - Fuzzy Matching für ähnliche Namen
+      - Einheiten müssen vergleichbar sein
+      - Filter: Nur aktuelle Preise (letzte 30 Tage)
+      - Mobile-optimiert
+    </requirements>
+  </prompt>
+
+</copilot-prompts>

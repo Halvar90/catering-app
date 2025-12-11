@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<system-documentation>
+  <title>Catering App - Bestehende System-Architektur</title>
+  <description>
+    Diese Dokumentation beschreibt das bereits implementierte System.
+    Nutze sie als Referenz beim Hinzufügen neuer Features.
+  </description>
+
+  <!-- DATENBANK SCHEMA -->
+  <database>
+    <provider>InstantDB (Echtzeit, NoSQL-ähnlich)</provider>
+    <location>lib/instantdb.ts</location>
+    
+    <entities>
+      <entity name="ingredients">
+        <description>Alle Lebensmittel mit Preisen und Berechnungen</description>
+        <fields>
+          - id: string (UUID)
+          - name: string (z.B. "Hackfleisch")
+          - category: string (optional, z.B. "Fleisch")
+          - shop: string (z.B. "REWE")
+          - pricePerUnit: number (Preis wie auf Kassenbon)
+          - unitSize: number (z.B. 500)
+          - unitType: string (z.B. "g", "kg", "ml", "l", "Stück")
+          - pricePerKg: number (automatisch berechnet)
+          - pricePerLiter: number (automatisch berechnet)
+          - pricePerPiece: number (automatisch berechnet)
+          - pricePerHundredGram: number (automatisch berechnet)
+          - currentStock: number (optional, für Inventar)
+          - minStock: number (optional, Mindestbestand)
+          - expiryDate: string (optional, ISO format)
+          - notes: string (optional)
+          - lastPurchaseDate: string (ISO format)
+          - receiptImageUrl: string (Link zum Kassenbon)
+        </fields>
+        <relationships>
+          - Verwendet in: recipeIngredients (many-to-many mit recipes)
+          - Verwendet in: shoppingList (one-to-many)
+        </relationships>
+      </entity>
+
+      <entity name="recipes">
+        <description>Rezepte mit Kosten und Margen-Kalkulation</description>
+        <fields>
+          - id: string
+          - name: string
+          - description: string (optional)
+          - portions: number (Anzahl Portionen)
+          - prepTime: number (Minuten)
+          - category: string (optional)
+          - imageUrl: string (optional, URL zu Bild)
+          - allergens: string (komma-separierte Liste)
+          - notes: string (optional)
+          - totalCostPerPortion: number (automatisch berechnet)
+          - suggestedMargin: number (automatisch: 150-300%)
+          - customMargin: number (User-einstellbar)
+          - sellingPricePerPortion: number (berechnet)
+          - createdAt: string (ISO format)
+        </fields>
+        <relationships>
+          - Has many: recipeIngredients
+        </relationships>
+      </entity>
+
+      <entity name="recipeIngredients">
+        <description>Verbindungstabelle zwischen Rezepten und Zutaten</description>
+        <fields>
+          - id: string
+          - amount: number (Menge für dieses Rezept)
+          - unit: string (Einheit für dieses Rezept)
+        </fields>
+        <relationships>
+          - Belongs to: recipe (one)
+          - Belongs to: ingredient (one)
+        </relationships>
+      </entity>
+
+      <entity name="shoppingList">
+        <description>Einkaufsliste mit Mengen und Status</description>
+        <fields>
+          - id: string
+          - amount: number
+          - unit: string
+          - checked: boolean (abgehakt?)
+          - shop: string (von ingredient übernommen)
+          - estimatedPrice: number (geschätzt)
+          - addedAt: string (ISO format)
+          - priority: string (optional: "high", "medium", "low")
+        </fields>
+        <relationships>
+          - Belongs to: ingredient (one)
+        </relationships>
+      </entity>
+
+      <entity name="receipts">
+        <description>Hochgeladene Kassenbons (Tracking)</description>
+        <fields>
+          - id: string
+          - imageUrl: string (Vercel Blob URL)
+          - storeName: string (via OCR erkannt)
+          - totalAmount: number (Gesamtbetrag)
+          - purchaseDate: string (ISO format)
+          - processed: boolean (OCR abgeschlossen?)
+          - rawOcrText: string (Original-Text vom OCR)
+        </fields>
+      </entity>
+    </entities>
+
+    <usage>
+      <!-- Daten abfragen -->
+      const { data, isLoading, error } = db.useQuery({
+        ingredients: {},
+      });
+
+      <!-- Daten erstellen/aktualisieren -->
+      db.transact([
+        db.tx.ingredients[id].update({ name: "Neuer Name" }),
+      ]);
+
+      <!-- Daten löschen -->
+      db.transact([db.tx.ingredients[id].delete()]);
+
+      <!-- Mit Beziehungen -->
+      const { data } = db.useQuery({
+        recipes: {
+          ingredients: {}, // Lädt verknüpfte Zutaten
+        },
+      });
+    </usage>
+  </database>
+
+  <!-- UTILITY FUNKTIONEN -->
+  <utilities>
+    <file>lib/utils.ts</file>
+    
+    <function name="calculatePriceConversions">
+      <description>Berechnet alle Preis-Konversionen (pro kg, pro 100g, etc.)</description>
+      <signature>
+        calculatePriceConversions(
+          pricePerUnit: number,
+          unitSize: number,
+          unitType: string
+        ): { pricePerKg?, pricePerLiter?, pricePerPiece?, pricePerHundredGram? }
+      </signature>
+      <example>
+        // Input: 4.99€ für 800g Hackfleisch
+        calculatePriceConversions(4.99, 800, 'g')
+        // Output: { pricePerKg: 6.24, pricePerHundredGram: 0.624 }
+      </example>
+    </function>
+
+    <function name="calculateRecipeCost">
+      <description>Berechnet Gesamtkosten eines Rezepts</description>
+      <signature>
+        calculateRecipeCost(
+          ingredients: Array&lt;{
+            amount: number,
+            unit: string,
+            ingredient: Ingredient
+          }&gt;
+        ): number
+      </signature>
+    </function>
+
+    <function name="getSuggestedMargin">
+      <description>Gibt empfohlene Marge basierend auf Kosten</description>
+      <returns>
+        - Kosten &lt; 2€: 300%
+        - Kosten 2-5€: 250%
+        - Kosten 5-10€: 200%
+        - Kosten &gt; 10€: 150%
+      </returns>
+    </function>
+
+    <function name="calculateSellingPrice">
+      <description>Berechnet Verkaufspreis mit Marge</description>
+      <formula>costPerPortion * (1 + marginPercent / 100)</formula>
+    </function>
+
+    <function name="getExpiryWarning">
+      <description>Prüft MHD und gibt Warnung zurück</description>
+      <returns>
+        {
+          isExpired: boolean,
+          isExpiringSoon: boolean (innerhalb 7 Tage),
+          daysUntilExpiry: number
+        }
+      </returns>
+    </function>
+
+    <function name="formatPrice">
+      <description>Formatiert Preis als Euro (z.B. "4,99 €")</description>
+    </function>
+
+    <function name="formatDate">
+      <description>Formatiert Datum deutsch (z.B. "15. Dez. 2024")</description>
+    </function>
+
+    <function name="normalizeUnit">
+      <description>Normalisiert Einheiten (g, kg, ml, l, Stück)</description>
+    </function>
+  </utilities>
+
+  <!-- API ROUTES -->
+  <api-routes>
+    <route path="/api/upload" method="POST">
+      <description>Lädt Bild zu Vercel Blob hoch</description>
+      <input>FormData mit 'file'</input>
+      <output>{ url: string }</output>
+      <usage>
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const { url } = await response.json();
+      </usage>
+    </route>
+
+    <route path="/api/ocr-receipt" method="POST">
+      <description>Verarbeitet Kassenbon mit OCR (OCR.space oder Tesseract.js)</description>
+      <input>{ imageUrl: string }</input>
+      <output>
+        {
+          receipt: {
+            id: string,
+            storeName: string,
+            totalAmount: number,
+            rawText: string
+          },
+          ingredients: Ingredient[]
+        }
+      </output>
+      <implementation>
+        - Nutzt OCR.space API (kostenlos, 25k/Monat)
+        - Alternativ: Tesseract.js (unbegrenzt kostenlos)
+        - Parst Text intelligent mit Regex
+        - Erkennt: Produktnamen, Preise, Mengen, Einheiten
+        - Ignoriert Pfand, Tüten, etc.
+      </implementation>
+    </route>
+  </api-routes>
+
+  <!-- KOMPONENTEN -->
+  <components>
+    <component name="ReceiptUpload">
+      <file>components/ReceiptUpload.tsx</file>
+      <description>Kassenbon-Scanner mit Kamera oder Upload</description>
+      <features>
+        - Kamera-Button (capture="environment")
+        - Datei-Upload Button
+        - Upload zu /api/upload
+        - OCR via /api/ocr-receipt
+        - Speichert Ingredients in DB
+        - Loading & Success States
+      </features>
+    </component>
+
+    <component name="IngredientsList">
+      <file>components/IngredientsList.tsx</file>
+      <description>Übersicht aller Zutaten, gruppiert nach Laden</description>
+      <features>
+        - Lädt alle ingredients von InstantDB
+        - Suchfunktion
+        - Gruppiert nach 'shop'
+        - Zeigt alle Preis-Konversionen
+        - Edit & Delete Buttons (noch nicht implementiert)
+      </features>
+    </component>
+
+    <component name="RecipesList">
+      <file>components/RecipesList.tsx</file>
+      <description>Rezept-Verwaltung mit Margin-Rechner</description>
+      <features>
+        - Grid von Recipe-Cards
+        - Detail-Modal mit:
+          * Kostenberechnung
+          * Profit-Margin Rechner
+          * Empfohlene Marge (automatisch)
+          * Custom Marge (Slider + Input)
+          * Live-Berechnung Verkaufspreis
+          * Gewinn pro Portion & Gesamt
+        - Speichert customMargin in DB
+      </features>
+    </component>
+
+    <component name="ShoppingList">
+      <file>components/ShoppingList.tsx</file>
+      <description>Einkaufsliste mit Abhak-Funktion</description>
+      <features>
+        - Gruppiert nach Shop
+        - Checkbox zum Abhaken (touch-optimiert)
+        - Statistiken: Total Items, Erledigt, Kosten
+        - "Erledigte entfernen" Button
+        - Swipe-ready (CSS-Klasse)
+      </features>
+    </component>
+
+    <component name="Inventory">
+      <file>components/Inventory.tsx</file>
+      <description>Inventar mit MHD-Tracking</description>
+      <features>
+        - Zeigt ingredients mit currentStock
+        - MHD-Warnungen:
+          * Rot: Abgelaufen
+          * Gelb: Läuft in 7 Tagen ab
+          * Grün: Okay
+        - Niedrige-Bestand Warnungen
+        - Filter: Alle, Ablaufend, Niedriger Bestand
+        - Suchfunktion
+      </features>
+    </component>
+  </components>
+
+  <!-- STYLING & UI -->
+  <styling>
+    <framework>Tailwind CSS</framework>
+    <theme>
+      <colors>
+        Primary: #f15b45 (Orange-Rot)
+        - 50 bis 900 definiert in tailwind.config.js
+      </colors>
+      <mobile-optimizations>
+        - Touch-Targets: min 44px × 44px
+        - Bottom Navigation auf Mobile
+        - Swipeable CSS-Klasse
+        - PWA-Support (manifest.json)
+      </mobile-optimizations>
+    </theme>
+    <icons>lucide-react (Camera, ShoppingCart, BookOpen, etc.)</icons>
+  </styling>
+
+  <!-- WORKFLOW BEISPIELE -->
+  <workflows>
+    <workflow name="kassenbon-scannen">
+      <steps>
+        1. User fotografiert Kassenbon
+        2. ReceiptUpload → /api/upload → Vercel Blob URL
+        3. /api/ocr-receipt → OCR.space oder Tesseract
+        4. Parse Text → Extract Products
+        5. calculatePriceConversions() für jede Zutat
+        6. db.transact() → Speichere ingredients
+        7. Success-Message
+      </steps>
+    </workflow>
+
+    <workflow name="rezept-mit-marge">
+      <steps>
+        1. User erstellt Rezept (später: manuell oder OCR)
+        2. Wählt Zutaten aus ingredients aus
+        3. Gibt Mengen ein
+        4. calculateRecipeCost() → Gesamtkosten
+        5. getSuggestedMargin() → Empfehlung
+        6. User passt Marge an (Slider)
+        7. calculateSellingPrice() → Verkaufspreis
+        8. db.transact() → Speichere recipe mit customMargin
+      </steps>
+    </workflow>
+
+    <workflow name="einkaufsliste-aus-rezept">
+      <steps>
+        1. User wählt Rezept
+        2. Modal: "Wie viele Portionen?"
+        3. Berechne neue Mengen: (zutat.amount / rezept.portions) * gewünschte_portionen
+        4. Für jede Zutat:
+           - Prüfe ob in shoppingList vorhanden
+           - Ja: Addiere Menge
+           - Nein: Neuer Eintrag
+        5. Schätze Preis aus ingredient.pricePerUnit
+        6. db.transact() → Update/Create shoppingList
+        7. Navigate zu ShoppingList
+      </steps>
+    </workflow>
+  </workflows>
+
+  <!-- BEST PRACTICES -->
+  <best-practices>
+    <database>
+      - Immer db.transact() für Änderungen
+      - UUIDs mit crypto.randomUUID()
+      - ISO-Format für Daten: new Date().toISOString()
+      - Echtzeit: db.useQuery() re-rendert automatisch
+    </database>
+
+    <performance>
+      - InstantDB cached automatisch
+      - Bilder via Vercel Blob (CDN)
+      - Loading States während async Operations
+      - Error Handling mit try-catch
+    </performance>
+
+    <mobile>
+      - Touch-Targets min 44px
+      - Bottom Navigation statt Top
+      - Swipe-Gesten für Listen
+      - PWA installierbar
+    </mobile>
+
+    <kostenlos>
+      - OCR.space: 25k/Monat free
+      - Tesseract.js: unbegrenzt
+      - InstantDB: 5GB free
+      - Vercel: Hobby Plan free
+      - Vercel Blob: 1GB/Monat free
+    </kostenlos>
+  </best-practices>
+
+  <!-- ERWEITERUNG: NEUE FEATURES HINZUFÜGEN -->
+  <extending>
+    <example feature="Neue Komponente">
+      1. Erstelle components/NewComponent.tsx
+      2. Nutze db.useQuery() für Daten
+      3. Nutze utilities aus lib/utils.ts
+      4. Implementiere mit Tailwind
+      5. Füge zu app/page.tsx Navigation hinzu
+      6. Teste auf Mobile (responsive)
+    </example>
+
+    <example feature="Neue API Route">
+      1. Erstelle app/api/new-route/route.ts
+      2. Export async function POST/GET
+      3. NextResponse.json() für Antworten
+      4. Nutze env vars aus process.env
+      5. Fehlerbehandlung mit try-catch
+    </example>
+
+    <example feature="Neue DB Entity">
+      1. Update instantdb-schema.json
+      2. Paste in InstantDB Dashboard
+      3. Update lib/instantdb.ts Types
+      4. Nutze db.transact() für Operations
+    </example>
+  </extending>
+
+  <!-- TROUBLESHOOTING -->
+  <common-issues>
+    <issue>
+      <problem>OCR erkennt nichts</problem>
+      <solution>
+        - Kassenbon muss gerade fotografiert sein
+        - Gute Beleuchtung
+        - Keine Schatten/Reflexionen
+        - Falls OCR.space: Prüfe API-Key
+        - Falls Tesseract: Kann 5-10 Sekunden dauern
+      </solution>
+    </issue>
+
+    <issue>
+      <problem>InstantDB Fehler</problem>
+      <solution>
+        - Prüfe NEXT_PUBLIC_INSTANT_APP_ID in .env.local
+        - Schema im Dashboard aktualisiert?
+        - Browser Console für Fehler checken
+      </solution>
+    </issue>
+
+    <issue>
+      <problem>Bilder laden nicht</problem>
+      <solution>
+        - Vercel Blob Token korrekt?
+        - Max 1MB Dateigröße
+        - Prüfe Network Tab im Browser
+      </solution>
+    </issue>
+  </common-issues>
+</system-documentation>
