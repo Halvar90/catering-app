@@ -11,7 +11,52 @@ export async function POST(request: Request) {
       );
     }
 
-    // OCR.space API für Rezept-Text
+    // OPTION 1: OpenAI GPT-4o (Beste Qualität für Handschrift)
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            messages: [
+              {
+                role: "system",
+                content: "Du bist ein Experte für das Erkennen von Rezepten, auch handschriftlichen. Extrahiere die Daten als JSON."
+              },
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: "Extrahiere das Rezept aus diesem Bild. Gib NUR ein JSON-Objekt zurück mit folgender Struktur: { name: string, portions: number, prepTime: number (in Minuten), category: 'Vorspeise' | 'Hauptgericht' | 'Dessert' | 'Snack', description: string, ingredients: { amount: number, unit: string, name: string }[], steps: string[] }. Normalisiere Einheiten auf metrisch (g, kg, ml, l, Stück) wo möglich. Wenn etwas nicht lesbar ist, rate sinnvoll." },
+                  { type: "image_url", image_url: { url: imageUrl } }
+                ]
+              }
+            ],
+            response_format: { type: "json_object" },
+            max_tokens: 1000
+          })
+        });
+
+        if (openaiResponse.ok) {
+          const data = await openaiResponse.json();
+          const content = data.choices[0].message.content;
+          const parsedRecipe = JSON.parse(content);
+          
+          return NextResponse.json({
+            recipe: parsedRecipe,
+            rawText: "Via OpenAI GPT-4o erkannt",
+            source: "openai"
+          });
+        }
+      } catch (e) {
+        console.error("OpenAI Fallback failed, trying OCR.space", e);
+      }
+    }
+
+    // OPTION 2: OCR.space (Fallback / Kostenlos)
     const formData = new FormData();
     formData.append('url', imageUrl);
     formData.append('language', 'ger');
@@ -50,6 +95,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       recipe: parsedRecipe,
       rawText: extractedText,
+      source: "ocr.space"
     });
   } catch (error) {
     console.error('OCR error:', error);
@@ -75,11 +121,10 @@ function parseRecipeText(text: string) {
 
   // Erste nicht-leere Zeile ist wahrscheinlich der Name
   if (lines.length > 0) {
-    recipe.name = lines[0];
+    recipe.name = lines[0].replace(/[:.]\s*$/, ''); // Entferne Doppelpunkte am Ende
   }
 
   let currentSection = '';
-  let stepCounter = 0;
   
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
@@ -117,7 +162,6 @@ function parseRecipeText(text: string) {
         lowerLine.includes('schritt') || lowerLine.includes('instruction') ||
         lowerLine === 'steps:' || lowerLine === 'directions:') {
       currentSection = 'steps';
-      stepCounter = 0;
       continue;
     }
 
@@ -141,6 +185,7 @@ function parseRecipeText(text: string) {
       }
 
       // Muster 2: "500 g Mehl"
+      // Verbessert: Erlaubt auch Komma als Dezimaltrenner und OCR-Fehler wie 'g' als '9'
       const pattern1 = cleaned.match(/^(\d+(?:[.,]\d+)?)\s*([a-zA-ZäöüÄÖÜß]+)\s+(.+)$/);
       if (pattern1) {
         recipe.ingredients.push({
@@ -195,44 +240,11 @@ function parseRecipeText(text: string) {
       if (line.length < 5) continue; // Zu kurz
 
       let stepText = line;
-      let matched = false;
-
-      // Muster 1: "1. Text" oder "1) Text"
-      const pattern1 = line.match(/^(\d+)[\.)]\s*(.+)$/);
-      if (pattern1) {
-        stepText = pattern1[2];
-        matched = true;
-      }
-
-      // Muster 2: "Schritt 1: Text"
-      const pattern2 = line.match(/^(?:Schritt|Step)\s*\d+:?\s*(.+)$/i);
-      if (pattern2) {
-        stepText = pattern2[1];
-        matched = true;
-      }
-
-      // Wenn langer Text ohne Nummer, könnte es ein Step sein
-      if (!matched && line.length > 15) {
-        matched = true;
-      }
-
-      if (matched && stepText.trim().length > 3) {
-        recipe.steps.push(stepText.trim());
-        stepCounter++;
-      }
       
-      continue;
-    }
-  }
-
-  // Falls keine Steps erkannt wurden, versuche alle langen Zeilen nach Zutaten
-  if (recipe.steps.length === 0 && recipe.ingredients.length > 0) {
-    let foundIngredients = false;
-    for (const line of lines) {
-      if (line.toLowerCase().includes('zutaten')) foundIngredients = true;
-      if (foundIngredients && line.length > 30 && !line.toLowerCase().includes('zutaten')) {
-        recipe.steps.push(line);
-      }
+      // Entferne Nummerierung am Anfang (1., 1), a), etc.)
+      stepText = stepText.replace(/^(\d+[.)]|\w\))\s*/, '');
+      
+      recipe.steps.push(stepText);
     }
   }
 
@@ -240,14 +252,17 @@ function parseRecipeText(text: string) {
 }
 
 function normalizeUnit(unit: string): string {
-  const u = unit.toLowerCase();
-  if (u === 'kg' || u === 'kilogramm') return 'kg';
-  if (u === 'g' || u === 'gramm') return 'g';
+  const u = unit.toLowerCase().replace('.', '');
+  if (u === 'kg' || u === 'kilo' || u === 'kilogramm') return 'kg';
+  if (u === 'g' || u === 'gr' || u === 'gramm') return 'g';
   if (u === 'l' || u === 'liter') return 'l';
   if (u === 'ml' || u === 'milliliter') return 'ml';
-  if (u === 'el' || u === 'essl' || u === 'esslöffel') return 'EL';
-  if (u === 'tl' || u === 'teel' || u === 'teelöffel') return 'TL';
-  if (u === 'stück' || u === 'stk' || u === 'stk.') return 'Stück';
-  if (u === 'prise' || u === 'prisen') return 'Prise';
+  if (u === 'el' || u === 'essl' || u === 'esslöffel' || u === 'tbsp') return 'EL';
+  if (u === 'tl' || u === 'teel' || u === 'teelöffel' || u === 'tsp') return 'TL';
+  if (u === 'stück' || u === 'stk' || u === 'st') return 'Stück';
+  if (u === 'prise' || u === 'pr' || u === 'prisen') return 'Prise';
+  if (u === 'dose' || u === 'dosen') return 'Dose';
+  if (u === 'bund' || u === 'bd') return 'Bund';
+  if (u === 'zehe' || u === 'zehen') return 'Zehe';
   return unit;
 }

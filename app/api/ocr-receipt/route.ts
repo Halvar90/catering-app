@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { calculatePriceConversions } from '@/lib/utils';
+import { createWorker } from 'tesseract.js';
+import * as mindee from "mindee";
 
 export async function POST(request: Request) {
   try {
@@ -12,34 +14,117 @@ export async function POST(request: Request) {
       );
     }
 
-    // OCR.space API aufrufen (kostenlos)
-    const formData = new FormData();
-    formData.append('url', imageUrl);
-    formData.append('language', 'ger'); // Deutsch
-    formData.append('isOverlayRequired', 'false');
-    formData.append('detectOrientation', 'true');
-    formData.append('scale', 'true');
-    formData.append('OCREngine', '2'); // Engine 2 ist besser für Deutsch
+    let extractedText = '';
+    let source = 'ocr.space';
+    let mindeeResult = null;
 
-    const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
-      method: 'POST',
-      headers: {
-        'apikey': process.env.OCR_API_KEY!,
-      },
-      body: formData,
-    });
+    // 0. Versuch: Mindee (wenn API Key vorhanden - bevorzugt)
+    if (process.env.MINDEE_API_KEY) {
+      try {
+        const mindeeClient = new mindee.Client({ apiKey: process.env.MINDEE_API_KEY });
+        const inputSource = mindeeClient.docFromUrl(imageUrl);
+        
+        const apiResponse = await mindeeClient.parse(
+          mindee.product.ReceiptV5,
+          inputSource
+        );
 
-    if (!ocrResponse.ok) {
-      throw new Error('OCR.space API Fehler');
+        if (apiResponse.document) {
+          mindeeResult = apiResponse.document;
+          source = 'mindee';
+        }
+      } catch (e) {
+        console.warn('Mindee failed, falling back to other providers', e);
+      }
     }
 
-    const ocrData = await ocrResponse.json();
+    // Wenn Mindee erfolgreich war, verarbeiten wir die strukturierten Daten direkt
+    if (mindeeResult) {
+      const prediction = mindeeResult.inference.prediction;
+      
+      const storeName = prediction.supplierName?.value || 'Unbekannt';
+      const totalAmount = prediction.totalAmount?.value || 0;
+      const purchaseDate = prediction.date?.value ? new Date(prediction.date.value).toISOString() : null;
+      
+      const ingredients = prediction.lineItems.map((item: any) => {
+        const name = item.description || 'Unbekannter Artikel';
+        const totalLinePrice = item.totalAmount || 0;
+        const quantity = item.quantity || 1;
+        const unit = 'Stück'; 
 
-    if (ocrData.IsErroredOnProcessing) {
-      throw new Error(ocrData.ErrorMessage?.[0] || 'OCR Fehler');
+        const conversions = calculatePriceConversions(
+          totalLinePrice,
+          quantity,
+          unit
+        );
+
+        return {
+          id: crypto.randomUUID(),
+          name: name,
+          shop: storeName,
+          pricePerUnit: totalLinePrice / quantity,
+          unitSize: quantity,
+          unitType: unit,
+          ...conversions,
+        };
+      });
+
+      return NextResponse.json({
+        receipt: {
+          id: crypto.randomUUID(),
+          storeName,
+          totalAmount,
+          purchaseDate,
+          rawText: mindeeResult.inference.prediction.toString(),
+          source,
+        },
+        ingredients,
+      });
     }
 
-    const extractedText = ocrData.ParsedResults?.[0]?.ParsedText || '';
+    // 1. Versuch: OCR.space (wenn API Key vorhanden)
+    if (process.env.OCR_API_KEY) {
+      try {
+        const formData = new FormData();
+        formData.append('url', imageUrl);
+        formData.append('language', 'ger');
+        formData.append('isOverlayRequired', 'false');
+        formData.append('detectOrientation', 'true');
+        formData.append('scale', 'true');
+        formData.append('OCREngine', '2');
+
+        const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
+          method: 'POST',
+          headers: {
+            'apikey': process.env.OCR_API_KEY,
+          },
+          body: formData,
+        });
+
+        if (ocrResponse.ok) {
+          const ocrData = await ocrResponse.json();
+          if (!ocrData.IsErroredOnProcessing) {
+            extractedText = ocrData.ParsedResults?.[0]?.ParsedText || '';
+          }
+        }
+      } catch (e) {
+        console.warn('OCR.space failed, falling back to Tesseract', e);
+      }
+    }
+
+    // 2. Versuch: Tesseract.js (Fallback oder wenn kein Key)
+    if (!extractedText) {
+      source = 'tesseract';
+      try {
+        const worker = await createWorker('deu');
+        const ret = await worker.recognize(imageUrl);
+        extractedText = ret.data.text;
+        await worker.terminate();
+      } catch (e) {
+        console.error('Tesseract failed:', e);
+        throw new Error('OCR fehlgeschlagen');
+      }
+    }
 
     if (!extractedText) {
       throw new Error('Kein Text erkannt');
@@ -60,7 +145,7 @@ export async function POST(request: Request) {
         id: crypto.randomUUID(),
         name: item.name,
         shop: parsedData.storeName || 'Unbekannt',
-        pricePerUnit: item.price,
+        pricePerUnit: item.price / item.quantity,
         unitSize: item.quantity,
         unitType: item.unit,
         ...conversions,
@@ -74,6 +159,7 @@ export async function POST(request: Request) {
         totalAmount: parsedData.totalAmount,
         purchaseDate: parsedData.purchaseDate,
         rawText: extractedText,
+        source,
       },
       ingredients,
     });
@@ -168,13 +254,14 @@ function parseReceiptText(text: string): {
     }
   }
 
-  // Extrahiere Artikel (verbessert für LIDL-Format)
+  // Extrahiere Artikel
   const items: Array<any> = [];
+  let pendingName = ''; // Für mehrzeilige Artikel
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     
-    // Ignoriere Header/Footer
+    // Ignoriere Header/Footer/Metadaten
     if (line.toUpperCase().includes('LIDL') || 
         line.toUpperCase().includes('MINDENERSTR') ||
         line.toUpperCase().includes('SUMME') ||
@@ -183,61 +270,70 @@ function parseReceiptText(text: string): {
         line.toUpperCase().includes('UST') ||
         line.toUpperCase().includes('KARTE') ||
         line.toUpperCase().includes('DATUM') ||
+        line.toUpperCase().includes('EUR/KG') || // Ignoriere Preiszeilen ohne Artikel
         line.length < 3) {
       continue;
     }
 
-    // LIDL Format: "K.champignons 1,99 x 2 3,98 A"
-    // oder: "Passionsfrucht 2,49 A"
-    const pricePattern = /^(.+?)\s+(\d+[,.]?\d*)\s*(?:x\s*(\d+))?\s+(\d+[,.]?\d+)\s*[A-Z]?$/;
-    const match = line.match(pricePattern);
-    
-    if (match) {
-      const [, productName, pricePerUnitStr, quantityStr, totalPriceStr] = match;
-      
-      const quantity = quantityStr ? parseFloat(quantityStr) : 1;
-      const pricePerUnit = parseFloat(pricePerUnitStr.replace(',', '.'));
-      const totalPrice = parseFloat(totalPriceStr.replace(',', '.'));
-      
-      // Produktname bereinigen
-      let name = productName.trim();
-      
-      // Ignoriere typische Nicht-Lebensmittel & LIDL Plus Rabatt
-      const ignoreWords = ['PFAND', 'TÜTE', 'TASCHE', 'BAG', 'RABATT', 'PLUS'];
-      if (ignoreWords.some(word => name.toUpperCase().includes(word))) {
-        continue;
-      }
+    // Ignoriere Rabatte
+    if (line.toUpperCase().includes('RABATT') || line.toUpperCase().includes('PREISVORTEIL')) {
+      continue;
+    }
 
-      // Erkenne Einheit aus Name (z.B. "0,048 kg" -> 0.048 kg)
-      let unit = 'Stück';
-      let extractedQuantity = quantity;
-      
-      const weightMatch = name.match(/(\d+[,.]?\d*)\s*(kg|g)/i);
-      if (weightMatch) {
-        extractedQuantity = parseFloat(weightMatch[1].replace(',', '.'));
-        unit = weightMatch[2].toLowerCase() === 'kg' ? 'kg' : 'g';
-        // Name bereinigen
-        name = name.replace(weightMatch[0], '').trim();
-      }
+    // Regex Strategien
+    let matched = false;
 
-      if (name.length > 2 && totalPrice > 0) {
-        items.push({ 
-          name, 
-          price: totalPrice, 
-          quantity: extractedQuantity * quantity, 
-          unit 
-        });
+    // 1. LIDL Format: "Name Preis x Menge Total A"
+    // Bsp: "K.champignons 1,99 x 2 3,98 A"
+    const lidlMultiMatch = line.match(/^(.+?)\s+(\d+[,.]\d{2})\s*x\s*(\d+(?:[,.]\d+)?)\s+(\d+[,.]\d{2})\s*[A-Z]?$/);
+    if (lidlMultiMatch) {
+      const [, name, pricePerUnit, quantity, total] = lidlMultiMatch;
+      addItem(items, name, parseFloat(total.replace(',', '.')), parseFloat(quantity.replace(',', '.')), 'Stück');
+      matched = true;
+      pendingName = '';
+    }
+
+    // 2. LIDL Format: "Name Total A" (Einzelartikel)
+    // Bsp: "Passionsfrucht 2,49 A"
+    // Achtung: Muss unterscheiden von "Name 123" (PLU Code)
+    if (!matched) {
+      const lidlSingleMatch = line.match(/^(.+?)\s+(\d+[,.]\d{2})\s*[A-Z]?$/);
+      if (lidlSingleMatch) {
+        const [, name, total] = lidlSingleMatch;
+        // Prüfe ob Name nur Zahlen enthält (PLU)
+        if (!/^\d+$/.test(name.trim())) {
+          addItem(items, name, parseFloat(total.replace(',', '.')), 1, 'Stück');
+          matched = true;
+          pendingName = '';
+        }
       }
-    } else {
-      // Fallback: Einfaches Format "Produktname Preis€"
-      const simpleMatch = line.match(/^(.+?)\s+(\d+[,.]?\d+)\s*€?$/);
-      if (simpleMatch) {
-        const [, name, priceStr] = simpleMatch;
-        const price = parseFloat(priceStr.replace(',', '.'));
+    }
+
+    // 3. Mehrzeilige Artikel (Name auf Zeile 1, Preis auf Zeile 2 oder 3)
+    // Bsp: "Ingwer Bio" -> "0,048 kg x 4,90 EUR/kg" -> "0,24 A"
+    if (!matched) {
+      // Ist es eine Preiszeile?
+      const priceLineMatch = line.match(/(\d+[,.]\d{2})\s*[A-Z]$/); // Endet auf Preis + A/B
+      if (priceLineMatch && pendingName) {
+        const total = parseFloat(priceLineMatch[1].replace(',', '.'));
         
-        const ignoreWords = ['PFAND', 'TÜTE', 'RABATT', 'PLUS', 'SUMME', 'DATUM', 'UHRZEIT'];
-        if (!ignoreWords.some(word => name.toUpperCase().includes(word)) && name.length > 2) {
-          items.push({ name: name.trim(), price, quantity: 1, unit: 'Stück' });
+        // Versuche Menge aus vorheriger Zeile oder aktueller Zeile zu lesen
+        // Hier vereinfacht: Wenn wir einen pendingName haben und jetzt einen Preis finden, nehmen wir es an
+        // Menge extrahieren ist schwer über Zeilen hinweg ohne Kontext
+        
+        // Check if current line has quantity info like "0,048 kg x ..."
+        // Aber oft steht das in der Zeile DAVOR oder in DIESER Zeile
+        
+        // Einfacher Fall: Wir nehmen den Preis und pendingName
+        addItem(items, pendingName, total, 1, 'Stück'); // Menge 1 als Fallback, Einheit Stück
+        matched = true;
+        pendingName = '';
+      } else if (!line.match(/\d+[,.]\d{2}/)) {
+        // Zeile hat KEINEN Preis -> Könnte ein Name sein
+        // Aber nur wenn nicht zu kurz und keine Metadaten
+        if (line.length > 3 && !line.includes('EUR')) {
+          pendingName = line;
+          matched = true; // Wir haben es "verarbeitet" (gebuffert)
         }
       }
     }
@@ -249,6 +345,35 @@ function parseReceiptText(text: string): {
     purchaseDate,
     items,
   };
+}
+
+function addItem(items: any[], name: string, price: number, quantity: number, unit: string) {
+  // Clean name
+  let cleanName = name.trim();
+  
+  // Extrahiere Menge aus Name wenn möglich (z.B. "Bio Möhren 1kg")
+  const weightMatch = cleanName.match(/(\d+[,.]?\d*)\s*(kg|g|l|ml)/i);
+  if (weightMatch) {
+    const weight = parseFloat(weightMatch[1].replace(',', '.'));
+    const weightUnit = weightMatch[2].toLowerCase();
+    // Wenn quantity 1 ist, überschreiben wir es mit dem Gewicht
+    if (quantity === 1) {
+      quantity = weight;
+      unit = weightUnit;
+    }
+    cleanName = cleanName.replace(weightMatch[0], '').trim();
+  }
+
+  // Filter bad names
+  const ignoreWords = ['PFAND', 'TÜTE', 'TASCHE', 'RABATT', 'SUMME', 'EUR'];
+  if (ignoreWords.some(w => cleanName.toUpperCase().includes(w))) return;
+
+  items.push({
+    name: cleanName,
+    price,
+    quantity,
+    unit
+  });
 }
 
 function normalizeUnit(unit: string): string {

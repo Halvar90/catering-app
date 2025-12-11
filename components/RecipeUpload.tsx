@@ -19,6 +19,7 @@ interface ParsedRecipe {
   ingredients: Ingredient[];
   steps: string[];
   description: string;
+  source?: string;
 }
 
 export default function RecipeUpload() {
@@ -58,6 +59,7 @@ export default function RecipeUpload() {
       setProcessing(true);
 
       let recipeData = null;
+      let source = '';
       try {
         const ocrResponse = await fetch('/api/ocr-recipe', {
           method: 'POST',
@@ -68,6 +70,7 @@ export default function RecipeUpload() {
         if (ocrResponse.ok) {
           const data = await ocrResponse.json();
           recipeData = data.recipe;
+          source = data.source;
         }
       } catch (ocrErr) {
         console.warn('OCR failed:', ocrErr);
@@ -85,6 +88,7 @@ export default function RecipeUpload() {
           id: crypto.randomUUID(),
         })),
         steps: recipeData?.steps || [],
+        source: source,
       };
       
       setParsedRecipe(recipeWithIds);
@@ -334,7 +338,14 @@ export default function RecipeUpload() {
             {/* Header */}
             <div className="sticky top-0 bg-white dark:bg-gray-800 border-b dark:border-gray-700 p-6 flex items-center justify-between">
               <div>
-                <h3 className="text-2xl font-bold dark:text-white">Rezept überprüfen</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-2xl font-bold dark:text-white">Rezept überprüfen</h3>
+                  {parsedRecipe.source === 'openai' && (
+                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full border border-green-200">
+                      AI Enhanced
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   Prüfe und bearbeite die erkannten Daten vor dem Speichern
                 </p>
