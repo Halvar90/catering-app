@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Plus, Edit2, Trash2, Store } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Store, FileDown } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { formatPrice } from '@/lib/utils';
+import { exportIngredientsToExcel } from '@/lib/export';
 import AddIngredientModal from './AddIngredientModal';
 
 export default function IngredientsList() {
@@ -52,14 +53,24 @@ export default function IngredientsList() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Zutatendatenbank</h2>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-primary-700"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Zutat hinzufügen</span>
-        </button>
+        <h2 className="text-2xl font-bold dark:text-white">Zutatendatenbank</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => exportIngredientsToExcel(ingredients)}
+            disabled={ingredients.length === 0}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-green-700 disabled:opacity-50"
+          >
+            <FileDown className="w-5 h-5" />
+            <span>Excel</span>
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-primary-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-primary-700"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Neue Zutat</span>
+          </button>
+        </div>
       </div>
 
       {/* Search */}

@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Package, AlertTriangle, CheckCircle, Search } from 'lucide-react';
+import { Package, AlertTriangle, CheckCircle, Search, Edit3 } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { formatDate, getExpiryWarning } from '@/lib/utils';
+import BulkInventoryUpdate from './BulkInventoryUpdate';
 
 export default function Inventory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterBy, setFilterBy] = useState<'all' | 'expiring' | 'low'>('all');
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
 
   const { isLoading, error, data } = db.useQuery({
     ingredients: {},
@@ -65,11 +67,21 @@ export default function Inventory() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Inventar</h2>
-        <p className="text-gray-600">
-          Verwalte deinen Bestand und behalte MHD im Blick
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold mb-2 dark:text-white">Inventar</h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Verwalte deinen Bestand und behalte MHD im Blick
+          </p>
+        </div>
+        <button
+          onClick={() => setShowBulkEdit(true)}
+          disabled={filteredItems.length === 0}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Edit3 className="w-5 h-5" />
+          <span>Bulk-Update</span>
+        </button>
       </div>
 
       {/* Warnings */}
@@ -166,6 +178,14 @@ export default function Inventory() {
             </div>
           )}
         </div>
+      )}
+      
+      {/* Bulk Edit Modal */}
+      {showBulkEdit && (
+        <BulkInventoryUpdate
+          ingredients={filteredItems}
+          onClose={() => setShowBulkEdit(false)}
+        />
       )}
     </div>
   );

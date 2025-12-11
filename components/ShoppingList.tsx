@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, Plus, Trash2, ShoppingCart, Store, ArrowUpDown } from 'lucide-react';
+import { Check, Plus, Trash2, ShoppingCart, Store, ArrowUpDown, FileDown } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { formatPrice } from '@/lib/utils';
+import { exportShoppingListToExcel } from '@/lib/export';
 
 type SortOption = 'shop' | 'priority' | 'name' | 'price';
 
@@ -99,20 +100,31 @@ export default function ShoppingList() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h2 className="text-2xl font-bold">Einkaufsliste</h2>
+        <h2 className="text-2xl font-bold dark:text-white">Einkaufsliste</h2>
         
-        <div className="flex items-center gap-2">
-          <ArrowUpDown className="w-5 h-5 text-gray-600" />
-          <select
-            value={sortBy}
-            onChange={(e) => handleSortChange(e.target.value as SortOption)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => exportShoppingListToExcel(items)}
+            disabled={items.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <option value="shop">Nach Laden</option>
-            <option value="priority">Nach Priorität</option>
-            <option value="name">Alphabetisch</option>
-            <option value="price">Nach Preis</option>
-          </select>
+            <FileDown className="w-5 h-5" />
+            <span>Excel Export</span>
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <select
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value as SortOption)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+            >
+              <option value="shop">Nach Laden</option>
+              <option value="priority">Nach Priorität</option>
+              <option value="name">Alphabetisch</option>
+              <option value="price">Nach Preis</option>
+            </select>
+          </div>
         </div>
       </div>
 

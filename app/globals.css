@@ -18,6 +18,44 @@ body {
     rgb(var(--background-start-rgb));
 }
 
+/* Dark Mode */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background: linear-gradient(to bottom, transparent, rgb(17, 24, 39)) rgb(17, 24, 39);
+  color: rgb(229, 231, 235);
+}
+
+.dark .bg-white {
+  background-color: rgb(31, 41, 55) !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: rgb(17, 24, 39) !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: rgb(31, 41, 55) !important;
+}
+
+.dark .text-gray-800 {
+  color: rgb(229, 231, 235) !important;
+}
+
+.dark .text-gray-600 {
+  color: rgb(156, 163, 175) !important;
+}
+
+.dark .border-gray-200 {
+  border-color: rgb(55, 65, 81) !important;
+}
+
+.dark .border-gray-300 {
+  border-color: rgb(75, 85, 99) !important;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

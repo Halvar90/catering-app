@@ -7,18 +7,27 @@ import {
   BookOpen, 
   Package, 
   Receipt,
-  Home as HomeIcon
+  Home as HomeIcon,
+  ArrowLeft,
+  Moon,
+  Sun,
+  BarChart3,
+  TrendingDown
 } from 'lucide-react';
 import ReceiptUpload from '@/components/ReceiptUpload';
 import IngredientsList from '@/components/IngredientsList';
 import RecipesList from '@/components/RecipesList';
 import ShoppingList from '@/components/ShoppingList';
 import Inventory from '@/components/Inventory';
+import RecipeUpload from '@/components/RecipeUpload';
+import PriceComparison from '@/components/PriceComparison';
+import Dashboard from '@/components/Dashboard';
 
-type View = 'home' | 'receipts' | 'ingredients' | 'recipes' | 'shopping' | 'inventory';
+type View = 'home' | 'receipts' | 'ingredients' | 'recipes' | 'shopping' | 'inventory' | 'recipe-upload' | 'price-compare' | 'dashboard';
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<View>('home');
+  const [darkMode, setDarkMode] = useState(false);
 
   const renderView = () => {
     switch (currentView) {
@@ -32,6 +41,12 @@ export default function Home() {
         return <ShoppingList />;
       case 'inventory':
         return <Inventory />;
+      case 'recipe-upload':
+        return <RecipeUpload />;
+      case 'price-compare':
+        return <PriceComparison />;
+      case 'dashboard':
+        return <Dashboard />;
       default:
         return (
           <div className="space-y-6">
@@ -73,6 +88,27 @@ export default function Home() {
                 onClick={() => setCurrentView('shopping')}
                 color="bg-orange-500"
               />
+              <QuickActionCard
+                icon={<Receipt className="w-8 h-8" />}
+                title="Rezept-Upload"
+                description="Rezept fotografieren und erkennen"
+                onClick={() => setCurrentView('recipe-upload')}
+                color="bg-indigo-500"
+              />
+              <QuickActionCard
+                icon={<TrendingDown className="w-12 h-12 text-white" />}
+                title="Preisvergleich"
+                description="Günstigste Läden finden"
+                onClick={() => setCurrentView('price-compare')}
+                color="bg-teal-500"
+              />
+              <QuickActionCard
+                icon={<BarChart3 className="w-12 h-12 text-white" />}
+                title="Dashboard"
+                description="Statistiken & Übersicht"
+                onClick={() => setCurrentView('dashboard')}
+                color="bg-purple-500"
+              />
             </div>
 
             {/* Quick Stats */}
@@ -99,18 +135,35 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${darkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-10">
+      <header className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'} shadow-sm sticky top-0 z-10`}>
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          {currentView !== 'home' ? (
+            <button
+              onClick={() => setCurrentView('home')}
+              className={`flex items-center space-x-2 ${darkMode ? 'text-primary-400' : 'text-primary-600'} hover:opacity-80`}
+            >
+              <ArrowLeft className="w-6 h-6" />
+              <span className="font-semibold hidden sm:inline">Zurück</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setCurrentView('home')}
+              className={`flex items-center space-x-2 ${darkMode ? 'text-primary-400' : 'text-primary-600'}`}
+            >
+              <HomeIcon className="w-6 h-6" />
+              <span className="font-semibold text-lg hidden sm:inline">
+                Catering Manager
+              </span>
+            </button>
+          )}
+          
           <button
-            onClick={() => setCurrentView('home')}
-            className="flex items-center space-x-2 text-primary-600"
+            onClick={() => setDarkMode(!darkMode)}
+            className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-600'} hover:opacity-80`}
           >
-            <HomeIcon className="w-6 h-6" />
-            <span className="font-semibold text-lg hidden sm:inline">
-              Catering Manager
-            </span>
+            {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
         </div>
       </header>

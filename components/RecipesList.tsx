@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Calculator, Edit2, Trash2, ChefHat } from 'lucide-react';
+import { Plus, Calculator, Edit2, Trash2, ChefHat, FileDown } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { formatPrice, getSuggestedMargin, calculateSellingPrice } from '@/lib/utils';
+import { exportRecipeToPDF, exportCostCalculationPDF } from '@/lib/export';
 import AddRecipeModal from './AddRecipeModal';
 
 export default function RecipesList() {
@@ -140,6 +141,20 @@ function RecipeDetailModal({ recipe, onClose }: { recipe: any; onClose: () => vo
     recipe.customMargin || recipe.suggestedMargin || getSuggestedMargin(recipe.totalCostPerPortion || 0)
   );
 
+  // Get recipe ingredients
+  const { data } = db.useQuery({
+    recipeIngredients: {
+      $: {
+        where: {
+          recipeId: recipe.id,
+        },
+      },
+      ingredient: {},
+    },
+  });
+
+  const recipeIngredients = data?.recipeIngredients || [];
+
   const costPerPortion = recipe.totalCostPerPortion || 0;
   const suggestedMargin = getSuggestedMargin(costPerPortion);
   const sellingPrice = calculateSellingPrice(costPerPortion, customMargin);
@@ -274,6 +289,23 @@ function RecipeDetailModal({ recipe, onClose }: { recipe: any; onClose: () => vo
           </div>
 
           {/* Actions */}
+          <div className="flex space-x-3">
+            <button 
+              onClick={() => exportRecipeToPDF(recipe, recipeIngredients)}
+              className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 flex items-center justify-center space-x-2"
+            >
+              <FileDown className="w-5 h-5" />
+              <span>PDF Export</span>
+            </button>
+            <button 
+              onClick={() => exportCostCalculationPDF(recipe, recipeIngredients)}
+              className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center space-x-2"
+            >
+              <Calculator className="w-5 h-5" />
+              <span>Kalkulation PDF</span>
+            </button>
+          </div>
+          
           <div className="flex space-x-3">
             <button className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 flex items-center justify-center space-x-2">
               <Edit2 className="w-5 h-5" />
