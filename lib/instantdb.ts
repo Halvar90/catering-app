@@ -36,11 +36,14 @@ export type Schema = {
     customMargin?: number;
     sellingPricePerPortion?: number;
     createdAt?: string;
+    recipeIngredients?: { id: string }[];
   };
   recipeIngredients: {
     id: string;
     amount: number;
     unit: string;
+    recipe?: { id: string };
+    ingredient?: { id: string };
   };
   shoppingList: {
     id: string;
@@ -51,6 +54,7 @@ export type Schema = {
     estimatedPrice?: number;
     addedAt?: string;
     priority?: string;
+    ingredient?: { id: string };
   };
   receipts: {
     id: string;

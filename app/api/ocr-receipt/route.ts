@@ -178,7 +178,7 @@ function parseReceiptText(text: string): {
       if (name.length > 2 && totalPrice > 0) {
         items.push({ 
           name, 
-          price: pricePerUnit, 
+          price: totalPrice, 
           quantity: extractedQuantity * quantity, 
           unit 
         });

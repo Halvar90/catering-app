@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Camera, 
   ShoppingCart, 
@@ -29,6 +29,23 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<View>('home');
   const [darkMode, setDarkMode] = useState(false);
 
+  // Load dark mode preference
+  useEffect(() => {
+    const saved = localStorage.getItem('darkMode');
+    if (saved) {
+      setDarkMode(JSON.parse(saved));
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setDarkMode(true);
+    }
+  }, []);
+
+  // Save dark mode preference
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    localStorage.setItem('darkMode', JSON.stringify(newMode));
+  };
+
   const renderView = () => {
     switch (currentView) {
       case 'receipts':
@@ -51,10 +68,10 @@ export default function Home() {
         return (
           <div className="space-y-6">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-primary-600 mb-2">
+              <h1 className="text-4xl font-bold text-primary-600 dark:text-primary-400 mb-2">
                 Catering Manager
               </h1>
-              <p className="text-gray-600">
+              <p className="text-gray-600 dark:text-gray-400">
                 Deine professionelle Catering-Verwaltung
               </p>
             </div>
@@ -112,20 +129,20 @@ export default function Home() {
             </div>
 
             {/* Quick Stats */}
-            <div className="bg-white rounded-lg shadow p-6 mt-8">
-              <h2 className="text-xl font-semibold mb-4">Übersicht</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mt-8">
+              <h2 className="text-xl font-semibold mb-4 dark:text-white">Übersicht</h2>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <div className="text-3xl font-bold text-primary-600">0</div>
-                  <div className="text-sm text-gray-600">Zutaten</div>
+                  <div className="text-3xl font-bold text-primary-600 dark:text-primary-400">0</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Zutaten</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-bold text-primary-600">0</div>
-                  <div className="text-sm text-gray-600">Rezepte</div>
+                  <div className="text-3xl font-bold text-primary-600 dark:text-primary-400">0</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Rezepte</div>
                 </div>
                 <div>
-                  <div className="text-3xl font-bold text-primary-600">0</div>
-                  <div className="text-sm text-gray-600">Shopping Items</div>
+                  <div className="text-3xl font-bold text-primary-600 dark:text-primary-400">0</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Shopping Items</div>
                 </div>
               </div>
             </div>
@@ -160,7 +177,7 @@ export default function Home() {
           )}
           
           <button
-            onClick={() => setDarkMode(!darkMode)}
+            onClick={toggleDarkMode}
             className={`p-2 rounded-lg ${darkMode ? 'bg-gray-700 text-yellow-400' : 'bg-gray-100 text-gray-600'} hover:opacity-80`}
           >
             {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -174,7 +191,7 @@ export default function Home() {
       </main>
 
       {/* Bottom Navigation (Mobile) */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden">
+      <nav className={`fixed bottom-0 left-0 right-0 border-t md:hidden ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
         <div className="flex justify-around py-2">
           <NavButton
             icon={<HomeIcon className="w-6 h-6" />}
@@ -231,13 +248,13 @@ function QuickActionCard({
   return (
     <button
       onClick={onClick}
-      className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow text-left"
+      className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow text-left"
     >
       <div className={`${color} text-white w-12 h-12 rounded-lg flex items-center justify-center mb-4`}>
         {icon}
       </div>
-      <h3 className="font-semibold text-lg mb-2">{title}</h3>
-      <p className="text-sm text-gray-600">{description}</p>
+      <h3 className="font-semibold text-lg mb-2 dark:text-white">{title}</h3>
+      <p className="text-sm text-gray-600 dark:text-gray-400">{description}</p>
     </button>
   );
 }
@@ -257,7 +274,7 @@ function NavButton({
     <button
       onClick={onClick}
       className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-lg ${
-        active ? 'text-primary-600' : 'text-gray-600'
+        active ? 'text-primary-600 dark:text-primary-400' : 'text-gray-600 dark:text-gray-400'
       }`}
     >
       {icon}

@@ -19,7 +19,7 @@ interface ReceiptData {
   id: string;
   storeName: string;
   totalAmount: number;
-  date: string;
+  purchaseDate: string;
   imageUrl?: string;
 }
 
@@ -102,7 +102,7 @@ export default function ReceiptUpload() {
           if (!lastReceiptData && data.receipt) {
             lastReceiptData = {
               ...data.receipt,
-              date: new Date().toISOString(),
+              purchaseDate: new Date().toISOString(),
               imageUrl: url // Keep the first image URL as main reference
             };
           }
@@ -126,7 +126,7 @@ export default function ReceiptUpload() {
           id: crypto.randomUUID(),
           storeName: 'Unbekannt',
           totalAmount: 0,
-          date: new Date().toISOString(),
+          purchaseDate: new Date().toISOString(),
           imageUrl: ''
         });
       }
@@ -169,7 +169,7 @@ export default function ReceiptUpload() {
           name: receiptName,
           storeName: receiptData?.storeName || 'Unbekannt',
           totalAmount: scannedItems.reduce((sum, item) => sum + item.totalPrice, 0),
-          purchaseDate: new Date().toISOString(),
+          purchaseDate: receiptData?.purchaseDate || new Date().toISOString(),
           processed: true,
           imageUrl: receiptData?.imageUrl || '',
         })
