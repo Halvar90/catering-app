@@ -101,7 +101,7 @@ function parseReceiptText(text: string): {
   // Erkenne Laden-Namen (meist in den ersten Zeilen)
   let storeName = 'Unbekannt';
   const storePatterns = ['REWE', 'EDEKA', 'ALDI', 'LIDL', 'KAUFLAND', 'PENNY', 'NETTO'];
-  for (const line of lines.slice(0, 5)) {
+  for (const line of lines.slice(0, 10)) {
     for (const pattern of storePatterns) {
       if (line.toUpperCase().includes(pattern)) {
         storeName = pattern;
@@ -113,47 +113,87 @@ function parseReceiptText(text: string): {
 
   // Erkenne Gesamtbetrag (SUMME, GESAMT, TOTAL, etc.)
   let totalAmount = 0;
-  const totalPatterns = ['SUMME', 'GESAMT', 'TOTAL', 'BETRAG', 'EUR'];
+  const totalPatterns = ['SUMME', 'GESAMT', 'TOTAL', 'BETRAG', 'ZAHLUNG'];
   for (const line of lines) {
-    if (totalPatterns.some(pattern => line.toUpperCase().includes(pattern))) {
-      const priceMatch = line.match(/(\d+[,.]?\d*)/);
+    const upper = line.toUpperCase();
+    if (totalPatterns.some(pattern => upper.includes(pattern))) {
+      const priceMatch = line.match(/(\d+[,.]?\d{2})\s*€?/);
       if (priceMatch) {
         totalAmount = parseFloat(priceMatch[1].replace(',', '.'));
       }
     }
   }
 
-  // Extrahiere Artikel (Zeilen mit Preis am Ende)
+  // Extrahiere Artikel (verbessert für LIDL-Format)
   const items: Array<any> = [];
-  const itemRegex = /^(.+?)\s+(\d+[,.]?\d*)\s*€?$/;
-  const quantityRegex = /(\d+[,.]?\d*)\s*(kg|g|l|ml|stück|stk)/i;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Ignoriere Header/Footer
+    if (line.toUpperCase().includes('LIDL') || 
+        line.toUpperCase().includes('MINDENERSTR') ||
+        line.toUpperCase().includes('SUMME') ||
+        line.toUpperCase().includes('ZAHLUNG') ||
+        line.toUpperCase().includes('RÜCKGELD') ||
+        line.toUpperCase().includes('UST') ||
+        line.toUpperCase().includes('KARTE') ||
+        line.length < 3) {
+      continue;
+    }
 
-  for (const line of lines) {
-    const match = line.match(itemRegex);
+    // LIDL Format: "K.champignons 1,99 x 2 3,98 A"
+    // oder: "Passionsfrucht 2,49 A"
+    const pricePattern = /^(.+?)\s+(\d+[,.]?\d*)\s*(?:x\s*(\d+))?\s+(\d+[,.]?\d+)\s*[A-Z]?$/;
+    const match = line.match(pricePattern);
+    
     if (match) {
-      const [, productText, priceStr] = match;
-      const price = parseFloat(priceStr.replace(',', '.'));
-
-      // Versuche Menge zu extrahieren
-      let quantity = 1;
-      let unit = 'Stück';
-      const qtyMatch = productText.match(quantityRegex);
-      if (qtyMatch) {
-        quantity = parseFloat(qtyMatch[1].replace(',', '.'));
-        unit = normalizeUnit(qtyMatch[2]);
-      }
-
-      // Produktname bereinigen
-      let name = productText.replace(quantityRegex, '').trim();
+      const [, productName, pricePerUnitStr, quantityStr, totalPriceStr] = match;
       
-      // Ignoriere typische Nicht-Lebensmittel
-      const ignoreWords = ['PFAND', 'TÜTE', 'TASCHE', 'BAG'];
+      const quantity = quantityStr ? parseFloat(quantityStr) : 1;
+      const pricePerUnit = parseFloat(pricePerUnitStr.replace(',', '.'));
+      const totalPrice = parseFloat(totalPriceStr.replace(',', '.'));
+      
+      // Produktname bereinigen
+      let name = productName.trim();
+      
+      // Ignoriere typische Nicht-Lebensmittel & LIDL Plus Rabatt
+      const ignoreWords = ['PFAND', 'TÜTE', 'TASCHE', 'BAG', 'RABATT', 'PLUS'];
       if (ignoreWords.some(word => name.toUpperCase().includes(word))) {
         continue;
       }
 
-      if (name.length > 2 && price > 0) {
-        items.push({ name, price, quantity, unit });
+      // Erkenne Einheit aus Name (z.B. "0,048 kg" -> 0.048 kg)
+      let unit = 'Stück';
+      let extractedQuantity = quantity;
+      
+      const weightMatch = name.match(/(\d+[,.]?\d*)\s*(kg|g)/i);
+      if (weightMatch) {
+        extractedQuantity = parseFloat(weightMatch[1].replace(',', '.'));
+        unit = weightMatch[2].toLowerCase() === 'kg' ? 'kg' : 'g';
+        // Name bereinigen
+        name = name.replace(weightMatch[0], '').trim();
+      }
+
+      if (name.length > 2 && totalPrice > 0) {
+        items.push({ 
+          name, 
+          price: pricePerUnit, 
+          quantity: extractedQuantity * quantity, 
+          unit 
+        });
+      }
+    } else {
+      // Fallback: Einfaches Format "Produktname Preis€"
+      const simpleMatch = line.match(/^(.+?)\s+(\d+[,.]?\d+)\s*€?$/);
+      if (simpleMatch) {
+        const [, name, priceStr] = simpleMatch;
+        const price = parseFloat(priceStr.replace(',', '.'));
+        
+        const ignoreWords = ['PFAND', 'TÜTE', 'RABATT', 'PLUS', 'SUMME'];
+        if (!ignoreWords.some(word => name.toUpperCase().includes(word)) && name.length > 2) {
+          items.push({ name: name.trim(), price, quantity: 1, unit: 'Stück' });
+        }
       }
     }
   }
