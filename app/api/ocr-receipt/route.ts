@@ -16,7 +16,7 @@ export async function POST(request: Request) {
 
     let extractedText = '';
     let source = 'ocr.space';
-    let veryfiResult = null;
+    let veryfiResult: any = null;
 
     // 0. Versuch: Veryfi (wenn Credentials vorhanden - bevorzugt)
     if (process.env.VERYFI_CLIENT_ID && process.env.VERYFI_CLIENT_SECRET && process.env.VERYFI_USERNAME && process.env.VERYFI_API_KEY) {
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     if (veryfiResult) {
       const storeName = veryfiResult.vendor?.name || 'Unbekannt';
       const totalAmount = veryfiResult.total || 0;
-      const purchaseDate = veryfiResult.date ? new Date(veryfiResult.date).toISOString() : null;
+      const purchaseDate = (veryfiResult.date && typeof veryfiResult.date === 'string') ? new Date(veryfiResult.date).toISOString() : null;
       
       const ingredients = (veryfiResult.line_items || []).map((item: any) => {
         const name = item.description || 'Unbekannter Artikel';
