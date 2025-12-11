@@ -2,6 +2,17 @@
 
 Professionelle Catering-Verwaltung mit automatischer Kassenbonauswertung, Rezeptverwaltung und Preiskalkulation.
 
+## 📚 Dokumentation
+
+Alle Setup-Anleitungen und technischen Dokumentationen findest du im [`docs/`](./docs) Ordner:
+
+- [**Quick Start**](./docs/QUICK_START.md) - In 10 Minuten live!
+- [**Kostenloses Setup**](./docs/KOSTENLOS_SETUP.md) - OCR.space & Tesseract.js Anleitung
+- [**Setup Prompts**](./docs/SETUP_PROMPTS.md) - CLI-Befehle für Installation
+- [**System Dokumentation**](./docs/SYSTEM_DOCUMENTATION.xml) - Technische Architektur
+- [**Copilot Prompts**](./docs/COPILOT_PROMPTS.xml) - Fertige Code-Anweisungen für Features
+- [**Lösungsübersicht**](./docs/KOSTENLOSE_LOESUNG_UEBERSICHT.md) - Zusammenfassung kostenloser Dienste
+
 ## Features ✨
 
 ### ✅ Bereits implementiert:
