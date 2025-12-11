@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Plus, Calculator, Edit2, Trash2, ChefHat } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { formatPrice, getSuggestedMargin, calculateSellingPrice } from '@/lib/utils';
+import AddRecipeModal from './AddRecipeModal';
 
 export default function RecipesList() {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -17,9 +18,11 @@ export default function RecipesList() {
         },
       },
     },
+    ingredients: {},
   });
 
   const recipes = data?.recipes || [];
+  const ingredients = data?.ingredients || [];
 
   if (isLoading) {
     return (
@@ -77,6 +80,13 @@ export default function RecipesList() {
           onClose={() => setSelectedRecipe(null)}
         />
       )}
+
+      {/* Add Recipe Modal */}
+      <AddRecipeModal 
+        isOpen={showAddModal} 
+        onClose={() => setShowAddModal(false)}
+        ingredients={ingredients}
+      />
     </div>
   );
 }

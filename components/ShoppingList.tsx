@@ -1,20 +1,53 @@
 'use client';
 
-import { useState } from 'react';
-import { Check, Plus, Trash2, ShoppingCart, Store } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Check, Plus, Trash2, ShoppingCart, Store, ArrowUpDown } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { formatPrice } from '@/lib/utils';
 
+type SortOption = 'shop' | 'priority' | 'name' | 'price';
+
 export default function ShoppingList() {
+  const [sortBy, setSortBy] = useState<SortOption>('shop');
+
+  // Load sort preference from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('shoppingListSort') as SortOption;
+    if (saved) setSortBy(saved);
+  }, []);
+
+  // Save sort preference
+  const handleSortChange = (option: SortOption) => {
+    setSortBy(option);
+    localStorage.setItem('shoppingListSort', option);
+  };
+
   const { isLoading, error, data } = db.useQuery({
     shoppingList: {
       ingredient: {},
     },
   });
 
-  const items = data?.shoppingList || [];
+  let items = data?.shoppingList || [];
 
-  // Group by shop
+  // Sort items
+  if (sortBy === 'name') {
+    items = [...items].sort((a: any, b: any) => 
+      (a.ingredient?.name || '').localeCompare(b.ingredient?.name || '')
+    );
+  } else if (sortBy === 'price') {
+    items = [...items].sort((a: any, b: any) => 
+      (b.estimatedPrice || 0) - (a.estimatedPrice || 0)
+    );
+  } else if (sortBy === 'priority') {
+    const priorityOrder = { high: 0, normal: 1, low: 2 };
+    items = [...items].sort((a: any, b: any) => 
+      (priorityOrder[a.priority as keyof typeof priorityOrder] || 1) - 
+      (priorityOrder[b.priority as keyof typeof priorityOrder] || 1)
+    );
+  }
+
+  // Group by shop (default)
   const groupedByShop = items.reduce((acc: any, item: any) => {
     const shop = item.ingredient?.shop || 'Unbekannt';
     if (!acc[shop]) {
@@ -65,12 +98,22 @@ export default function ShoppingList() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-2xl font-bold">Einkaufsliste</h2>
-        <button className="bg-primary-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-primary-700">
-          <Plus className="w-5 h-5" />
-          <span>Hinzufügen</span>
-        </button>
+        
+        <div className="flex items-center gap-2">
+          <ArrowUpDown className="w-5 h-5 text-gray-600" />
+          <select
+            value={sortBy}
+            onChange={(e) => handleSortChange(e.target.value as SortOption)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+          >
+            <option value="shop">Nach Laden</option>
+            <option value="priority">Nach Priorität</option>
+            <option value="name">Alphabetisch</option>
+            <option value="price">Nach Preis</option>
+          </select>
+        </div>
       </div>
 
       {/* Summary */}
