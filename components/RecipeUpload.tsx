@@ -32,12 +32,12 @@ export default function RecipeUpload() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (file: File) => {
-    try {
-      setUploading(true);
-      setError(null);
-      setSuccess(false);
-      setParsedRecipe(null);
+    setUploading(true);
+    setError(null);
+    setSuccess(false);
+    setParsedRecipe(null);
 
+    try {
       // Upload zu Vercel Blob
       const formData = new FormData();
       formData.append('file', file);
@@ -57,39 +57,70 @@ export default function RecipeUpload() {
       setUploading(false);
       setProcessing(true);
 
-      const ocrResponse = await fetch('/api/ocr-recipe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: url }),
-      });
+      let recipeData = null;
+      try {
+        const ocrResponse = await fetch('/api/ocr-recipe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: url }),
+        });
 
-      if (!ocrResponse.ok) {
-        const errorData = await ocrResponse.json();
-        throw new Error(errorData.error || 'OCR fehlgeschlagen');
+        if (ocrResponse.ok) {
+          const data = await ocrResponse.json();
+          recipeData = data.recipe;
+        }
+      } catch (ocrErr) {
+        console.warn('OCR failed:', ocrErr);
       }
 
-      const { recipe } = await ocrResponse.json();
-      
-      // Add IDs to ingredients
+      // Construct recipe (either from OCR or empty)
       const recipeWithIds = {
-        ...recipe,
-        ingredients: recipe.ingredients.map((ing: any) => ({
+        name: recipeData?.name || '',
+        portions: recipeData?.portions || 4,
+        prepTime: recipeData?.prepTime || 30,
+        category: recipeData?.category || 'Sonstiges',
+        description: recipeData?.description || '',
+        ingredients: (recipeData?.ingredients || []).map((ing: any) => ({
           ...ing,
           id: crypto.randomUUID(),
         })),
-        category: recipe.category || 'Sonstiges',
-        description: recipe.description || '',
+        steps: recipeData?.steps || [],
       };
       
       setParsedRecipe(recipeWithIds);
       setShowReviewModal(true);
-      setProcessing(false);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ein Fehler ist aufgetreten');
+      console.error('Process error:', err);
+      setError('Fehler beim Verarbeiten. Bitte manuell eingeben.');
+      // Fallback to empty recipe
+      setParsedRecipe({
+        name: '',
+        portions: 4,
+        prepTime: 30,
+        category: 'Sonstiges',
+        description: '',
+        ingredients: [],
+        steps: [],
+      });
+      setShowReviewModal(true);
+    } finally {
       setUploading(false);
       setProcessing(false);
     }
+  };
+
+  const handleManualEntry = () => {
+    setParsedRecipe({
+      name: '',
+      portions: 4,
+      prepTime: 30,
+      category: 'Sonstiges',
+      description: '',
+      ingredients: [],
+      steps: [],
+    });
+    setShowReviewModal(true);
   };
 
   const saveRecipe = async () => {
@@ -228,6 +259,15 @@ export default function RecipeUpload() {
           >
             <Upload className="w-12 h-12 text-primary-600 mb-2" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Datei auswählen</span>
+          </button>
+
+          <button
+            onClick={handleManualEntry}
+            disabled={uploading || processing}
+            className="col-span-2 flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-primary-500 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Edit2 className="w-8 h-8 text-gray-500 mb-2" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Manuell erstellen</span>
           </button>
         </div>
 

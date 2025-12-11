@@ -79,6 +79,10 @@ export default function ShoppingList() {
   };
 
   const handleClearChecked = () => {
+    if (!window.confirm('Möchtest du wirklich alle erledigten Artikel löschen?')) {
+      return;
+    }
+
     const checkedIds = items
       .filter((item: any) => item.checked)
       .map((item: any) => item.id);

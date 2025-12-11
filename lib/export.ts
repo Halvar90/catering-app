@@ -94,10 +94,12 @@ export function exportCostCalculationPDF(recipe: any, recipeIngredients: any[]) 
   
   recipeIngredients.forEach((ri: any) => {
     const ing = ri.ingredient;
+    if (!ing) return;
+    
     const cost = (ing.pricePerUnit / ing.unitSize) * ri.amount;
     total += cost;
     
-    doc.text(ing.name.substring(0, 25), 20, yPos);
+    doc.text(ing.name?.substring(0, 25) || 'Unbekannt', 20, yPos);
     doc.text(`${ri.amount} ${ri.unit}`, 80, yPos);
     doc.text(formatPrice(ing.pricePerUnit / ing.unitSize), 120, yPos);
     doc.text(formatPrice(cost), 160, yPos);

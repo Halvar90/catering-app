@@ -30,7 +30,7 @@ export default function Dashboard() {
   const totalIngredients = ingredients.length;
   const totalRecipes = recipes.length;
   const avgMargin = recipes.length > 0
-    ? recipes.reduce((sum: number, r: any) => sum + (r.customMargin || 0), 0) / recipes.length
+    ? recipes.reduce((sum: number, r: any) => sum + (r.customMargin || r.suggestedMargin || 0), 0) / recipes.length
     : 0;
   
   const totalShoppingCost = shoppingList.reduce(
