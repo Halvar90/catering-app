@@ -290,29 +290,29 @@ export default function RecipeUpload() {
 
         {/* Status Messages */}
         {uploading && (
-          <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg">
-            <Loader2 className="w-5 h-5 text-blue-600 animate-spin mr-2" />
-            <span className="text-blue-700">Bild wird hochgeladen...</span>
+          <div className="flex items-center justify-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <Loader2 className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin mr-2" />
+            <span className="text-blue-700 dark:text-blue-300">Bild wird hochgeladen...</span>
           </div>
         )}
 
         {processing && (
-          <div className="flex items-center justify-center p-4 bg-yellow-50 rounded-lg">
-            <Loader2 className="w-5 h-5 text-yellow-600 animate-spin mr-2" />
-            <span className="text-yellow-700">Rezept wird erkannt...</span>
+          <div className="flex items-center justify-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+            <Loader2 className="w-5 h-5 text-yellow-600 dark:text-yellow-400 animate-spin mr-2" />
+            <span className="text-yellow-700 dark:text-yellow-300">Rezept wird erkannt...</span>
           </div>
         )}
 
         {success && (
-          <div className="flex items-center justify-center p-4 bg-green-50 rounded-lg">
-            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-            <span className="text-green-700">Rezept erfolgreich gespeichert!</span>
+          <div className="flex items-center justify-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mr-2" />
+            <span className="text-green-700 dark:text-green-300">Rezept erfolgreich gespeichert!</span>
           </div>
         )}
 
         {error && (
-          <div className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/30 rounded-lg">
-            <span className="text-red-700 dark:text-red-400">{error}</span>
+          <div className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+            <span className="text-red-700 dark:text-red-300">{error}</span>
             <button onClick={() => setError(null)}>
               <X className="w-5 h-5 text-red-600 dark:text-red-400" />
             </button>
@@ -320,7 +320,7 @@ export default function RecipeUpload() {
         )}
 
         {/* Hinweis */}
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
           <p className="text-sm text-blue-800 dark:text-blue-300">
             <strong>💡 Tipp:</strong> Für beste Ergebnisse sollte das Rezept klar strukturiert sein
           </p>

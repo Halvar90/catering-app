@@ -84,8 +84,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold mb-2">Dashboard</h2>
-        <p className="text-gray-600">Übersicht über deine Catering-Verwaltung</p>
+        <h2 className="text-2xl font-bold mb-2 dark:text-white">Dashboard</h2>
+        <p className="text-gray-600 dark:text-gray-400">Übersicht über deine Catering-Verwaltung</p>
       </div>
 
       {/* Key Metrics */}
@@ -119,28 +119,30 @@ export default function Dashboard() {
       {/* Charts */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Top Zutaten */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Top 5 Zutaten</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4 dark:text-white">Top 5 Zutaten</h3>
           {topIngredients.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={topIngredients}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="name" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1F2937', border: 'none', color: '#F3F4F6' }}
+                />
                 <Bar dataKey="count" fill="#f15b45" />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
               Noch keine Daten verfügbar
             </div>
           )}
         </div>
 
         {/* Kategorien */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Zutaten nach Kategorie</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4 dark:text-white">Zutaten nach Kategorie</h3>
           {categoryChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
@@ -158,32 +160,36 @@ export default function Dashboard() {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1F2937', border: 'none', color: '#F3F4F6' }}
+                />
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
               Noch keine Daten verfügbar
             </div>
           )}
         </div>
 
         {/* Läden */}
-        <div className="bg-white rounded-lg shadow p-6 md:col-span-2">
-          <h3 className="text-lg font-semibold mb-4">Top 5 Läden (nach Zutatenanzahl)</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 md:col-span-2">
+          <h3 className="text-lg font-semibold mb-4 dark:text-white">Top 5 Läden (nach Zutatenanzahl)</h3>
           {shopChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={shopChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="name" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1F2937', border: 'none', color: '#F3F4F6' }}
+                />
+                <Legend wrapperStyle={{ color: '#9CA3AF' }} />
                 <Bar dataKey="count" fill="#10b981" name="Anzahl Zutaten" />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
               Noch keine Daten verfügbar
             </div>
           )}
@@ -192,25 +198,25 @@ export default function Dashboard() {
 
       {/* Rezept-Statistiken */}
       {recipes.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Rezept-Übersicht</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4 dark:text-white">Rezept-Übersicht</h3>
           <div className="space-y-3">
             {recipes.slice(0, 5).map((recipe: any) => (
               <div
                 key={recipe.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
               >
                 <div className="flex-1">
-                  <div className="font-medium">{recipe.name}</div>
-                  <div className="text-sm text-gray-600">
+                  <div className="font-medium dark:text-white">{recipe.name}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     {recipe.portions} Portionen • {recipe.category || 'Sonstiges'}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-primary-600">
+                  <div className="font-semibold text-primary-600 dark:text-primary-400">
                     {formatPrice(recipe.totalCostPerPortion || 0)}/Portion
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     Marge: {recipe.customMargin || 0}%
                   </div>
                 </div>
@@ -222,10 +228,10 @@ export default function Dashboard() {
 
       {/* Empty State */}
       {totalIngredients === 0 && totalRecipes === 0 && (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-xl font-semibold mb-2">Noch keine Daten</h3>
-          <p className="text-gray-600 mb-4">
+          <h3 className="text-xl font-semibold mb-2 dark:text-white">Noch keine Daten</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             Füge Zutaten und Rezepte hinzu, um Statistiken zu sehen
           </p>
         </div>
@@ -236,12 +242,12 @@ export default function Dashboard() {
 
 function MetricCard({ icon, title, value, color }: any) {
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
       <div className={`${color} w-12 h-12 rounded-lg flex items-center justify-center text-white mb-3`}>
         {icon}
       </div>
-      <div className="text-2xl font-bold mb-1">{value}</div>
-      <div className="text-sm text-gray-600">{title}</div>
+      <div className="text-2xl font-bold mb-1 dark:text-white">{value}</div>
+      <div className="text-sm text-gray-600 dark:text-gray-400">{title}</div>
     </div>
   );
 }

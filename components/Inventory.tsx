@@ -88,34 +88,34 @@ export default function Inventory() {
       {(expiringCount > 0 || lowStockCount > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {expiringCount > 0 && (
-            <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-              <div className="flex items-center space-x-2 text-red-700 mb-2">
+            <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-lg p-4">
+              <div className="flex items-center space-x-2 text-red-700 dark:text-red-400 mb-2">
                 <AlertTriangle className="w-5 h-5" />
                 <span className="font-semibold">MHD-Warnung</span>
               </div>
-              <p className="text-sm text-red-600">
+              <p className="text-sm text-red-600 dark:text-red-300">
                 {expiringCount} {expiringCount === 1 ? 'Artikel läuft' : 'Artikel laufen'} bald ab
               </p>
               <button
                 onClick={() => setFilterBy('expiring')}
-                className="mt-2 text-sm text-red-700 font-semibold hover:underline"
+                className="mt-2 text-sm text-red-700 dark:text-red-400 font-semibold hover:underline"
               >
                 Anzeigen →
               </button>
             </div>
           )}
           {lowStockCount > 0 && (
-            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
-              <div className="flex items-center space-x-2 text-yellow-700 mb-2">
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <div className="flex items-center space-x-2 text-yellow-700 dark:text-yellow-400 mb-2">
                 <Package className="w-5 h-5" />
                 <span className="font-semibold">Niedriger Bestand</span>
               </div>
-              <p className="text-sm text-yellow-600">
+              <p className="text-sm text-yellow-600 dark:text-yellow-300">
                 {lowStockCount} {lowStockCount === 1 ? 'Artikel ist' : 'Artikel sind'} fast leer
               </p>
               <button
                 onClick={() => setFilterBy('low')}
-                className="mt-2 text-sm text-yellow-700 font-semibold hover:underline"
+                className="mt-2 text-sm text-yellow-700 dark:text-yellow-400 font-semibold hover:underline"
               >
                 Anzeigen →
               </button>
@@ -133,7 +133,7 @@ export default function Inventory() {
             placeholder="Zutaten suchen..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
         <div className="flex space-x-2">
@@ -160,20 +160,20 @@ export default function Inventory() {
 
       {/* Inventory List */}
       {inventoryItems.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-xl font-semibold mb-2">Inventar leer</h3>
-          <p className="text-gray-600">
+          <h3 className="text-xl font-semibold mb-2 dark:text-white">Inventar leer</h3>
+          <p className="text-gray-600 dark:text-gray-400">
             Füge Bestandsinformationen zu deinen Zutaten hinzu
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow divide-y divide-gray-200">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow divide-y divide-gray-200 dark:divide-gray-700">
           {filteredItems.map((item: any) => (
             <InventoryItem key={item.id} item={item} />
           ))}
           {filteredItems.length === 0 && (
-            <div className="p-8 text-center text-gray-600">
+            <div className="p-8 text-center text-gray-600 dark:text-gray-400">
               Keine Artikel gefunden
             </div>
           )}
@@ -200,24 +200,24 @@ function InventoryItem({ item }: { item: any }) {
     item.currentStock <= item.minStock;
 
   return (
-    <div className="p-4 hover:bg-gray-50">
+    <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center space-x-2">
-            <h4 className="font-semibold text-lg">{item.name}</h4>
+            <h4 className="font-semibold text-lg dark:text-white">{item.name}</h4>
             {/* Status Badges */}
             {expiryWarning?.isExpired && (
-              <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded">
+              <span className="px-2 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 text-xs font-semibold rounded">
                 ABGELAUFEN
               </span>
             )}
             {expiryWarning?.isExpiringSoon && !expiryWarning.isExpired && (
-              <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">
+              <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 text-xs font-semibold rounded">
                 LÄUFT AB
               </span>
             )}
             {hasLowStock && (
-              <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded">
+              <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 text-xs font-semibold rounded">
                 NIEDRIG
               </span>
             )}
@@ -226,16 +226,16 @@ function InventoryItem({ item }: { item: any }) {
           <div className="mt-2 space-y-2">
             {/* Stock Info */}
             <div className="flex items-center space-x-4 text-sm">
-              <span className="text-gray-600">Bestand:</span>
+              <span className="text-gray-600 dark:text-gray-400">Bestand:</span>
               <span
                 className={`font-semibold ${
-                  hasLowStock ? 'text-orange-600' : 'text-gray-800'
+                  hasLowStock ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-200'
                 }`}
               >
                 {item.currentStock} {item.unitType}
               </span>
               {item.minStock !== undefined && (
-                <span className="text-gray-500">
+                <span className="text-gray-500 dark:text-gray-500">
                   (Min: {item.minStock} {item.unitType})
                 </span>
               )}
@@ -246,22 +246,22 @@ function InventoryItem({ item }: { item: any }) {
               <div className="flex items-center space-x-2 text-sm">
                 {expiryWarning?.isExpired ? (
                   <>
-                    <AlertTriangle className="w-4 h-4 text-red-600" />
-                    <span className="text-red-600 font-semibold">
+                    <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                    <span className="text-red-600 dark:text-red-400 font-semibold">
                       Abgelaufen seit {Math.abs(expiryWarning.daysUntilExpiry)} Tagen
                     </span>
                   </>
                 ) : expiryWarning?.isExpiringSoon ? (
                   <>
-                    <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                    <span className="text-yellow-600 font-semibold">
+                    <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                    <span className="text-yellow-600 dark:text-yellow-400 font-semibold">
                       MHD in {expiryWarning.daysUntilExpiry} Tagen ({formatDate(item.expiryDate)})
                     </span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-gray-600">
+                    <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    <span className="text-gray-600 dark:text-gray-400">
                       MHD: {formatDate(item.expiryDate)}
                     </span>
                   </>
@@ -271,14 +271,14 @@ function InventoryItem({ item }: { item: any }) {
 
             {/* Notes */}
             {item.notes && (
-              <div className="text-sm text-gray-600 italic">"{item.notes}"</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400 italic">"{item.notes}"</div>
             )}
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex space-x-2">
-          <button className="px-3 py-1 bg-primary-100 text-primary-700 rounded hover:bg-primary-200 text-sm font-medium">
+          <button className="px-3 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded hover:bg-primary-200 dark:hover:bg-primary-900/50 text-sm font-medium">
             Bearbeiten
           </button>
         </div>
@@ -302,7 +302,7 @@ function FilterButton({
       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
         active
           ? 'bg-primary-600 text-white'
-          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
       }`}
     >
       {children}

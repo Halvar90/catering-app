@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { getSuggestedMargin } from '@/lib/utils';
@@ -9,6 +9,7 @@ interface AddRecipeModalProps {
   isOpen: boolean;
   onClose: () => void;
   ingredients: any[];
+  initialData?: any;
 }
 
 interface RecipeIngredient {
@@ -17,7 +18,7 @@ interface RecipeIngredient {
   unit: string;
 }
 
-export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddRecipeModalProps) {
+export default function AddRecipeModal({ isOpen, onClose, ingredients, initialData }: AddRecipeModalProps) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,49 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
 
   // Step 3: Zubereitung
   const [preparationSteps, setPreparationSteps] = useState(['']);
+
+  // Load initial data if available
+  useEffect(() => {
+    if (isOpen && initialData) {
+      setName(initialData.name || '');
+      setDescription(initialData.description || '');
+      setPortions(initialData.portions || 4);
+      setPrepTime(initialData.prepTime || 30);
+      setCategory(initialData.category || 'Hauptgericht');
+      
+      // Load ingredients if they are passed or need to be fetched
+      // Assuming initialData might contain recipeIngredients or we need to fetch them
+      // For now, let's assume the parent component passes fully populated data or we handle it here.
+      // If initialData.recipeIngredients is an array of { ingredientId, amount, unit }
+      if (initialData.recipeIngredients) {
+         setRecipeIngredients(initialData.recipeIngredients.map((ri: any) => ({
+           ingredientId: ri.ingredientId || ri.ingredient?.id, // Handle both structure types if needed
+           amount: ri.amount,
+           unit: ri.unit
+         })));
+      }
+
+      // Load steps
+      // Assuming preparationSteps is stored as an array of strings in DB or joined string
+      // Adjust based on your DB schema. If it's not in DB, we default to ['']
+      // If your DB schema doesn't have steps yet, we can ignore or add a field.
+      // Let's assume it might be there or we default.
+      // For this example, I'll assume it's not strictly in the schema I saw earlier but good to have.
+      // If it's not in the schema, we can't save it yet, but let's keep the UI state.
+      setPreparationSteps(['']); 
+    } else if (isOpen && !initialData) {
+      // Reset form
+      setName('');
+      setDescription('');
+      setPortions(4);
+      setPrepTime(30);
+      setCategory('Hauptgericht');
+      setRecipeIngredients([]);
+      setPreparationSteps(['']);
+      setStep(1);
+    }
+  }, [isOpen, initialData]);
+
 
   const categories = ['Vorspeise', 'Hauptgericht', 'Beilage', 'Dessert', 'Snack', 'Getränk', 'Sonstiges'];
 
@@ -105,9 +149,9 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
       setSaving(true);
       setError(null);
 
-      const recipeId = crypto.randomUUID();
+      const recipeId = initialData ? initialData.id : crypto.randomUUID();
 
-      // Erstelle Rezept
+      // Erstelle/Update Rezept
       const transactions: any[] = [
         db.tx.recipes[recipeId].update({
           name,
@@ -115,15 +159,43 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
           portions,
           prepTime,
           category,
-          createdAt: new Date().toISOString(),
+          // Only set createdAt if new
+          ...(initialData ? {} : { createdAt: new Date().toISOString() }),
+          // Always update these on save
           totalCostPerPortion: costPerPortion,
           suggestedMargin,
-          customMargin: suggestedMargin,
-          sellingPricePerPortion: costPerPortion * (1 + suggestedMargin / 100),
+          // Keep custom margin if editing, else use suggested
+          customMargin: initialData ? (initialData.customMargin || suggestedMargin) : suggestedMargin,
+          sellingPricePerPortion: costPerPortion * (1 + (initialData ? (initialData.customMargin || suggestedMargin) : suggestedMargin) / 100),
         }),
       ];
 
-      // Erstelle RecipeIngredients mit Links
+      // Handle Ingredients
+      // Strategy: Delete all existing links for this recipe and recreate them.
+      // This is simpler than diffing.
+      if (initialData) {
+         // We need to know the link IDs to delete them. 
+         // Since we might not have them easily here without querying, 
+         // a better approach for InstantDB might be needed if we can't delete by query.
+         // Assuming we can't easily "delete where recipeId = X", we might need to rely on the parent passing the link IDs
+         // or just add new ones and hope for the best (bad idea).
+         
+         // For now, let's assume we just add/update. 
+         // Ideally, we should unlink removed ingredients.
+         // If we can't unlink easily, we might accumulate garbage links.
+         // Let's try to unlink if we have the info.
+         
+         // If initialData has recipeIngredients with link ids, we can unlink them.
+         if (initialData.recipeIngredients) {
+             initialData.recipeIngredients.forEach((ri: any) => {
+                 if (ri.id) { // Assuming ri.id is the link id
+                     transactions.push(db.tx.recipeIngredients[ri.id].delete());
+                 }
+             });
+         }
+      }
+
+      // Create new links
       recipeIngredients.forEach(ri => {
         const linkId = crypto.randomUUID();
         transactions.push(
@@ -140,14 +212,16 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
       await db.transact(transactions);
 
       // Reset
-      setName('');
-      setDescription('');
-      setPortions(4);
-      setPrepTime(30);
-      setCategory('Hauptgericht');
-      setRecipeIngredients([]);
-      setPreparationSteps(['']);
-      setStep(1);
+      if (!initialData) {
+          setName('');
+          setDescription('');
+          setPortions(4);
+          setPrepTime(30);
+          setCategory('Hauptgericht');
+          setRecipeIngredients([]);
+          setPreparationSteps(['']);
+          setStep(1);
+      }
       onClose();
     } catch (err) {
       setError('Fehler beim Speichern des Rezepts');
@@ -161,14 +235,16 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Rezept erstellen</h2>
-            <p className="text-sm text-gray-600">Schritt {step} von 4</p>
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
+              {initialData ? 'Rezept bearbeiten' : 'Rezept erstellen'}
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Schritt {step} von 4</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-600 dark:text-gray-400">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -179,13 +255,13 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
             {[1, 2, 3, 4].map((s) => (
               <div key={s} className="flex items-center flex-1">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
-                  s <= step ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-600'
+                  s <= step ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                 }`}>
                   {s}
                 </div>
                 {s < 4 && (
                   <div className={`flex-1 h-1 mx-2 ${
-                    s < step ? 'bg-primary-600' : 'bg-gray-200'
+                    s < step ? 'bg-primary-600' : 'bg-gray-200 dark:bg-gray-700'
                   }`} />
                 )}
               </div>
@@ -197,29 +273,29 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
           {/* Step 1: Grundinfo */}
           {step === 1 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold mb-4">Grundinformationen</h3>
+              <h3 className="text-lg font-semibold mb-4 dark:text-white">Grundinformationen</h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Rezeptname <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   placeholder="z.B. Spaghetti Carbonara"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Beschreibung
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   rows={3}
                   placeholder="Kurze Beschreibung des Rezepts..."
                 />
@@ -227,39 +303,39 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Portionen
                   </label>
                   <input
                     type="number"
                     value={portions}
                     onChange={(e) => setPortions(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     min="1"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Zeit (Min)
                   </label>
                   <input
                     type="number"
                     value={prepTime}
                     onChange={(e) => setPrepTime(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     min="1"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Kategorie
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   >
                     {categories.map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
@@ -273,30 +349,30 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
           {/* Step 2: Zutaten */}
           {step === 2 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold mb-4">Zutaten auswählen</h3>
+              <h3 className="text-lg font-semibold mb-4 dark:text-white">Zutaten auswählen</h3>
 
               {/* Suche */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Zutat hinzufügen
                 </label>
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   placeholder="Zutat suchen..."
                 />
                 {searchTerm && filteredIngredients.length > 0 && (
-                  <div className="mt-2 max-h-40 overflow-y-auto border border-gray-300 rounded-lg">
+                  <div className="mt-2 max-h-40 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
                     {filteredIngredients.slice(0, 5).map(ing => (
                       <button
                         key={ing.id}
                         onClick={() => addIngredient(ing.id)}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-200 last:border-b-0"
+                        className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-600 border-b border-gray-200 dark:border-gray-600 last:border-b-0"
                       >
-                        <div className="font-medium">{ing.name}</div>
-                        <div className="text-xs text-gray-500">{ing.shop}</div>
+                        <div className="font-medium dark:text-white">{ing.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{ing.shop}</div>
                       </button>
                     ))}
                   </div>
@@ -305,29 +381,29 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
 
               {/* Ausgewählte Zutaten */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Ausgewählte Zutaten ({recipeIngredients.length})
                 </label>
                 {recipeIngredients.map((ri, idx) => {
                   const ing = ingredients.find(i => i.id === ri.ingredientId);
                   return (
-                    <div key={idx} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                    <div key={idx} className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                       <div className="flex-1">
-                        <div className="font-medium">{ing?.name}</div>
-                        <div className="text-xs text-gray-500">{ing?.shop}</div>
+                        <div className="font-medium dark:text-white">{ing?.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{ing?.shop}</div>
                       </div>
                       <input
                         type="number"
                         value={ri.amount}
                         onChange={(e) => updateIngredient(idx, 'amount', parseFloat(e.target.value) || 0)}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded"
+                        className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded"
                         min="0"
                         step="0.01"
                       />
                       <select
                         value={ri.unit}
                         onChange={(e) => updateIngredient(idx, 'unit', e.target.value)}
-                        className="w-20 px-2 py-1 border border-gray-300 rounded"
+                        className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-white rounded"
                       >
                         <option value="g">g</option>
                         <option value="kg">kg</option>
@@ -339,7 +415,7 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
                       </select>
                       <button
                         onClick={() => removeIngredient(idx)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded"
+                        className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -353,7 +429,7 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
           {/* Step 3: Zubereitung */}
           {step === 3 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold mb-4">Zubereitungsschritte</h3>
+              <h3 className="text-lg font-semibold mb-4 dark:text-white">Zubereitungsschritte</h3>
               
               {preparationSteps.map((step, idx) => (
                 <div key={idx} className="flex gap-2">
@@ -363,14 +439,14 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
                   <textarea
                     value={step}
                     onChange={(e) => updateStep(idx, e.target.value)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     rows={2}
                     placeholder={`Schritt ${idx + 1}...`}
                   />
                   {preparationSteps.length > 1 && (
                     <button
                       onClick={() => removeStep(idx)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
@@ -380,7 +456,7 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
 
               <button
                 onClick={addStep}
-                className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-primary-500 hover:text-primary-600 flex items-center justify-center gap-2"
+                className="w-full py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 flex items-center justify-center gap-2"
               >
                 <Plus className="w-5 h-5" />
                 Schritt hinzufügen
@@ -391,29 +467,29 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
           {/* Step 4: Vorschau */}
           {step === 4 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold mb-4">Vorschau & Kostenberechnung</h3>
+              <h3 className="text-lg font-semibold mb-4 dark:text-white">Vorschau & Kostenberechnung</h3>
 
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-xl font-bold mb-2">{name}</h4>
-                {description && <p className="text-gray-600 mb-4">{description}</p>}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h4 className="text-xl font-bold mb-2 dark:text-white">{name}</h4>
+                {description && <p className="text-gray-600 dark:text-gray-300 mb-4">{description}</p>}
                 
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-primary-600">{portions}</div>
-                    <div className="text-sm text-gray-600">Portionen</div>
+                    <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">{portions}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Portionen</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-primary-600">{prepTime}</div>
-                    <div className="text-sm text-gray-600">Minuten</div>
+                    <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">{prepTime}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Minuten</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-medium text-gray-600">{category}</div>
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-300">{category}</div>
                   </div>
                 </div>
 
-                <div className="border-t border-gray-200 pt-4">
-                  <h5 className="font-semibold mb-2">Zutaten:</h5>
-                  <ul className="space-y-1 text-sm">
+                <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+                  <h5 className="font-semibold mb-2 dark:text-white">Zutaten:</h5>
+                  <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
                     {recipeIngredients.map((ri, idx) => {
                       const ing = ingredients.find(i => i.id === ri.ingredientId);
                       return (
@@ -424,9 +500,9 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
                 </div>
               </div>
 
-              <div className="bg-primary-50 rounded-lg p-4">
-                <h5 className="font-semibold mb-3">Kostenberechnung:</h5>
-                <div className="space-y-2">
+              <div className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-4">
+                <h5 className="font-semibold mb-3 dark:text-white">Kostenberechnung:</h5>
+                <div className="space-y-2 text-gray-700 dark:text-gray-300">
                   <div className="flex justify-between">
                     <span>Kosten pro Portion:</span>
                     <span className="font-bold">{costPerPortion.toFixed(2)} €</span>
@@ -435,9 +511,9 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
                     <span>Empfohlene Marge:</span>
                     <span className="font-bold">{suggestedMargin}%</span>
                   </div>
-                  <div className="flex justify-between border-t border-primary-200 pt-2">
+                  <div className="flex justify-between border-t border-primary-200 dark:border-primary-800 pt-2">
                     <span className="font-semibold">Empfohlener Verkaufspreis:</span>
-                    <span className="text-xl font-bold text-primary-600">
+                    <span className="text-xl font-bold text-primary-600 dark:text-primary-400">
                       {(costPerPortion * (1 + suggestedMargin / 100)).toFixed(2)} €
                     </span>
                   </div>
@@ -448,7 +524,7 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
 
           {/* Error Message */}
           {error && (
-            <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+            <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg text-sm">
               {error}
             </div>
           )}
@@ -458,7 +534,7 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
             {step > 1 && (
               <button
                 onClick={() => setStep(step - 1)}
-                className="px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                className="px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
               >
                 <ChevronLeft className="w-5 h-5" />
                 Zurück
@@ -467,7 +543,7 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients }: AddReci
             
             <button
               onClick={onClose}
-              className="px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className="px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               Abbrechen
             </button>

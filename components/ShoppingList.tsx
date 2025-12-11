@@ -160,30 +160,30 @@ export default function ShoppingList() {
 
       {/* Shopping List */}
       {items.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <ShoppingCart className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-xl font-semibold mb-2">Einkaufsliste leer</h3>
-          <p className="text-gray-600 mb-6">
+          <h3 className="text-xl font-semibold mb-2 dark:text-white">Einkaufsliste leer</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
             Füge Zutaten aus Rezepten hinzu oder erstelle manuell Einträge
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           {Object.entries(groupedByShop).map(([shop, shopItems]: [string, any]) => (
-            <div key={shop} className="bg-white rounded-lg shadow overflow-hidden">
+            <div key={shop} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
               {/* Shop Header */}
-              <div className="bg-gray-100 px-4 py-3 flex items-center justify-between border-b border-gray-200">
+              <div className="bg-gray-100 dark:bg-gray-700 px-4 py-3 flex items-center justify-between border-b border-gray-200 dark:border-gray-600">
                 <div className="flex items-center space-x-2">
-                  <Store className="w-5 h-5 text-gray-600" />
-                  <span className="font-semibold">{shop}</span>
+                  <Store className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  <span className="font-semibold dark:text-white">{shop}</span>
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 dark:text-gray-300">
                   {shopItems.filter((i: any) => i.checked).length}/{shopItems.length}
                 </div>
               </div>
 
               {/* Items */}
-              <div className="divide-y divide-gray-200">
+              <div className="divide-y divide-gray-200 dark:divide-gray-700">
                 {shopItems.map((item: any) => (
                   <ShoppingListItem
                     key={item.id}
@@ -213,7 +213,7 @@ function ShoppingListItem({
   return (
     <div
       className={`p-4 flex items-center space-x-4 swipeable ${
-        item.checked ? 'bg-gray-50' : 'hover:bg-gray-50'
+        item.checked ? 'bg-gray-50 dark:bg-gray-700/50' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
       }`}
     >
       {/* Checkbox */}
@@ -222,7 +222,7 @@ function ShoppingListItem({
         className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
           item.checked
             ? 'bg-green-500 border-green-500'
-            : 'border-gray-300 hover:border-primary-500'
+            : 'border-gray-300 dark:border-gray-500 hover:border-primary-500'
         }`}
       >
         {item.checked && <Check className="w-5 h-5 text-white" />}
@@ -230,10 +230,10 @@ function ShoppingListItem({
 
       {/* Item Info */}
       <div className={`flex-1 ${item.checked ? 'opacity-50' : ''}`}>
-        <div className={`font-semibold ${item.checked ? 'line-through' : ''}`}>
+        <div className={`font-semibold dark:text-white ${item.checked ? 'line-through' : ''}`}>
           {item.ingredient?.name || 'Unbekannt'}
         </div>
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-gray-600 dark:text-gray-400">
           {item.amount} {item.unit}
           {item.estimatedPrice && (
             <span className="ml-2">• {formatPrice(item.estimatedPrice)}</span>
@@ -244,7 +244,7 @@ function ShoppingListItem({
       {/* Delete */}
       <button
         onClick={onDelete}
-        className="flex-shrink-0 p-2 text-gray-400 hover:text-red-600"
+        className="flex-shrink-0 p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
       >
         <Trash2 className="w-5 h-5" />
       </button>

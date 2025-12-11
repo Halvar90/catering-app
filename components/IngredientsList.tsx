@@ -10,6 +10,7 @@ import AddIngredientModal from './AddIngredientModal';
 export default function IngredientsList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState<any>(null);
 
   // Query ingredients from InstantDB
   const { isLoading, error, data } = db.useQuery({
@@ -32,6 +33,22 @@ export default function IngredientsList() {
     acc[ing.shop].push(ing);
     return acc;
   }, {});
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Möchtest du diese Zutat wirklich löschen?')) {
+      db.transact([db.tx.ingredients[id].delete()]);
+    }
+  };
+
+  const handleEdit = (ingredient: any) => {
+    setEditingIngredient(ingredient);
+    setShowAddModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowAddModal(false);
+    setEditingIngredient(null);
+  };
 
   if (isLoading) {
     return (
@@ -81,16 +98,16 @@ export default function IngredientsList() {
           placeholder="Zutaten oder Läden suchen..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
       </div>
 
       {/* Ingredients grouped by shop */}
       {ingredients.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
           <Store className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-xl font-semibold mb-2">Noch keine Zutaten</h3>
-          <p className="text-gray-600 mb-6">
+          <h3 className="text-xl font-semibold mb-2 dark:text-white">Noch keine Zutaten</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
             Scanne deinen ersten Kassenbon oder füge Zutaten manuell hinzu
           </p>
           <button
@@ -103,15 +120,20 @@ export default function IngredientsList() {
       ) : (
         <div className="space-y-6">
           {Object.entries(groupedByShop).map(([shop, items]: [string, any]) => (
-            <div key={shop} className="bg-white rounded-lg shadow">
-              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center space-x-2">
-                <Store className="w-5 h-5 text-gray-600" />
-                <h3 className="font-semibold">{shop}</h3>
-                <span className="text-sm text-gray-600">({items.length})</span>
+            <div key={shop} className="bg-white dark:bg-gray-800 rounded-lg shadow">
+              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-b border-gray-200 dark:border-gray-600 flex items-center space-x-2">
+                <Store className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                <h3 className="font-semibold dark:text-white">{shop}</h3>
+                <span className="text-sm text-gray-600 dark:text-gray-400">({items.length})</span>
               </div>
-              <div className="divide-y divide-gray-200">
+              <div className="divide-y divide-gray-200 dark:divide-gray-700">
                 {items.map((ingredient: any) => (
-                  <IngredientItem key={ingredient.id} ingredient={ingredient} />
+                  <IngredientItem 
+                    key={ingredient.id} 
+                    ingredient={ingredient} 
+                    onEdit={() => handleEdit(ingredient)}
+                    onDelete={() => handleDelete(ingredient.id)}
+                  />
                 ))}
               </div>
             </div>
@@ -122,19 +144,20 @@ export default function IngredientsList() {
       {/* Add Ingredient Modal */}
       <AddIngredientModal 
         isOpen={showAddModal} 
-        onClose={() => setShowAddModal(false)} 
+        onClose={handleCloseModal}
+        initialData={editingIngredient}
       />
     </div>
   );
 }
 
-function IngredientItem({ ingredient }: { ingredient: any }) {
+function IngredientItem({ ingredient, onEdit, onDelete }: { ingredient: any; onEdit: () => void; onDelete: () => void }) {
   return (
-    <div className="p-4 hover:bg-gray-50">
+    <div className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h4 className="font-semibold text-lg">{ingredient.name}</h4>
-          <div className="mt-2 space-y-1 text-sm text-gray-600">
+          <h4 className="font-semibold text-lg dark:text-white">{ingredient.name}</h4>
+          <div className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400">
             <div className="flex items-center space-x-4">
               <span className="font-medium">
                 {formatPrice(ingredient.pricePerUnit)} für {ingredient.unitSize}
@@ -156,10 +179,16 @@ function IngredientItem({ ingredient }: { ingredient: any }) {
           </div>
         </div>
         <div className="flex space-x-2">
-          <button className="p-2 text-gray-600 hover:text-primary-600">
+          <button 
+            onClick={onEdit}
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+          >
             <Edit2 className="w-5 h-5" />
           </button>
-          <button className="p-2 text-gray-600 hover:text-red-600">
+          <button 
+            onClick={onDelete}
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+          >
             <Trash2 className="w-5 h-5" />
           </button>
         </div>
