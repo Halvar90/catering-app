@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { calculatePriceConversions } from '@/lib/utils';
 import { createWorker } from 'tesseract.js';
-import * as mindee from "mindee";
+import Client from '@veryfi/veryfi-sdk';
 
 export async function POST(request: Request) {
   try {
@@ -16,41 +16,42 @@ export async function POST(request: Request) {
 
     let extractedText = '';
     let source = 'ocr.space';
-    let mindeeResult = null;
+    let veryfiResult = null;
 
-    // 0. Versuch: Mindee (wenn API Key vorhanden - bevorzugt)
-    if (process.env.MINDEE_API_KEY) {
+    // 0. Versuch: Veryfi (wenn Credentials vorhanden - bevorzugt)
+    if (process.env.VERYFI_CLIENT_ID && process.env.VERYFI_CLIENT_SECRET && process.env.VERYFI_USERNAME && process.env.VERYFI_API_KEY) {
       try {
-        const mindeeClient = new mindee.Client({ apiKey: process.env.MINDEE_API_KEY });
-        const inputSource = mindeeClient.docFromUrl(imageUrl);
-        
-        const apiResponse = await mindeeClient.parse(
-          mindee.product.ReceiptV5,
-          inputSource
+        const veryfiClient = new Client(
+          process.env.VERYFI_CLIENT_ID,
+          process.env.VERYFI_CLIENT_SECRET,
+          process.env.VERYFI_USERNAME,
+          process.env.VERYFI_API_KEY
         );
+        
+        // Veryfi verarbeitet die URL direkt
+        const response = await veryfiClient.process_document_url(imageUrl);
 
-        if (apiResponse.document) {
-          mindeeResult = apiResponse.document;
-          source = 'mindee';
+        if (response) {
+          veryfiResult = response;
+          source = 'veryfi';
         }
       } catch (e) {
-        console.warn('Mindee failed, falling back to other providers', e);
+        console.warn('Veryfi failed, falling back to other providers', e);
       }
     }
 
-    // Wenn Mindee erfolgreich war, verarbeiten wir die strukturierten Daten direkt
-    if (mindeeResult) {
-      const prediction = mindeeResult.inference.prediction;
+    // Wenn Veryfi erfolgreich war, verarbeiten wir die strukturierten Daten direkt
+    if (veryfiResult) {
+      const storeName = veryfiResult.vendor?.name || 'Unbekannt';
+      const totalAmount = veryfiResult.total || 0;
+      const purchaseDate = veryfiResult.date ? new Date(veryfiResult.date).toISOString() : null;
       
-      const storeName = prediction.supplierName?.value || 'Unbekannt';
-      const totalAmount = prediction.totalAmount?.value || 0;
-      const purchaseDate = prediction.date?.value ? new Date(prediction.date.value).toISOString() : null;
-      
-      const ingredients = prediction.lineItems.map((item: any) => {
+      const ingredients = (veryfiResult.line_items || []).map((item: any) => {
         const name = item.description || 'Unbekannter Artikel';
-        const totalLinePrice = item.totalAmount || 0;
+        const totalLinePrice = item.total || 0;
         const quantity = item.quantity || 1;
-        const unit = 'Stück'; 
+        // Veryfi liefert manchmal Einheiten, sonst Default
+        const unit = item.unit || 'Stück'; 
 
         const conversions = calculatePriceConversions(
           totalLinePrice,
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
           storeName,
           totalAmount,
           purchaseDate,
-          rawText: mindeeResult.inference.prediction.toString(),
+          rawText: veryfiResult.ocr_text || '',
           source,
         },
         ingredients,
