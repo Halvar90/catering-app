@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Search, Plus, Edit2, Trash2, Store } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { formatPrice } from '@/lib/utils';
+import AddIngredientModal from './AddIngredientModal';
 
 export default function IngredientsList() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -146,6 +147,12 @@ function IngredientItem({ ingredient }: { ingredient: any }) {
           </button>
         </div>
       </div>
+
+      {/* Add Ingredient Modal */}
+      <AddIngredientModal 
+        isOpen={showAddModal} 
+        onClose={() => setShowAddModal(false)} 
+      />
     </div>
   );
 }
