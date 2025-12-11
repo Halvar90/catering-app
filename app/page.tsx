@@ -7,7 +7,7 @@ import {
   BookOpen, 
   Package, 
   Receipt,
-  Home
+  Home as HomeIcon
 } from 'lucide-react';
 import ReceiptUpload from '@/components/ReceiptUpload';
 import IngredientsList from '@/components/IngredientsList';
@@ -107,7 +107,7 @@ export default function Home() {
             onClick={() => setCurrentView('home')}
             className="flex items-center space-x-2 text-primary-600"
           >
-            <Home className="w-6 h-6" />
+            <HomeIcon className="w-6 h-6" />
             <span className="font-semibold text-lg hidden sm:inline">
               Catering Manager
             </span>
@@ -124,7 +124,7 @@ export default function Home() {
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden">
         <div className="flex justify-around py-2">
           <NavButton
-            icon={<Home className="w-6 h-6" />}
+            icon={<HomeIcon className="w-6 h-6" />}
             label="Home"
             active={currentView === 'home'}
             onClick={() => setCurrentView('home')}
