@@ -1,16 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Calculator, Edit2, Trash2, ChefHat, FileDown, X } from 'lucide-react';
+import { Plus, Calculator, Edit2, Trash2, ChefHat, FileDown, X, ShoppingCart } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { formatPrice, getSuggestedMargin, calculateSellingPrice } from '@/lib/utils';
 import { exportRecipeToPDF, exportCostCalculationPDF } from '@/lib/export';
 import AddRecipeModal from './AddRecipeModal';
+import AddToShoppingListModal from './AddToShoppingListModal';
 
 export default function RecipesList() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
   const [editingRecipe, setEditingRecipe] = useState<any>(null);
+  const [showShoppingModal, setShowShoppingModal] = useState(false);
+  const [selectedRecipeForShopping, setSelectedRecipeForShopping] = useState<any>(null);
 
   const { isLoading, error, data } = db.useQuery({
     recipes: {
@@ -50,6 +53,12 @@ export default function RecipesList() {
       db.transact([db.tx.recipes[recipeId].delete()]);
       setSelectedRecipe(null);
     }
+  };
+
+  const handleAddToShoppingList = (recipe: any, recipeIngredients: any[]) => {
+    setSelectedRecipeForShopping({ ...recipe, recipeIngredients });
+    setShowShoppingModal(true);
+    setSelectedRecipe(null); // Close detail modal
   };
 
   const handleCloseModal = () => {
@@ -113,6 +122,7 @@ export default function RecipesList() {
           onClose={() => setSelectedRecipe(null)}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onAddToShoppingList={handleAddToShoppingList}
         />
       )}
 
@@ -122,6 +132,17 @@ export default function RecipesList() {
         onClose={handleCloseModal}
         ingredients={ingredients}
         initialData={editingRecipe}
+      />
+
+      {/* Add to Shopping List Modal */}
+      <AddToShoppingListModal
+        isOpen={showShoppingModal}
+        onClose={() => {
+          setShowShoppingModal(false);
+          setSelectedRecipeForShopping(null);
+        }}
+        recipe={selectedRecipeForShopping}
+        recipeIngredients={selectedRecipeForShopping?.recipeIngredients || []}
       />
     </div>
   );
@@ -171,7 +192,19 @@ function RecipeCard({ recipe, onClick }: { recipe: any; onClick: () => void }) {
   );
 }
 
-function RecipeDetailModal({ recipe, onClose, onEdit, onDelete }: { recipe: any; onClose: () => void; onEdit: (r: any) => void; onDelete: (id: string) => void }) {
+function RecipeDetailModal({ 
+  recipe, 
+  onClose, 
+  onEdit, 
+  onDelete, 
+  onAddToShoppingList 
+}: { 
+  recipe: any; 
+  onClose: () => void; 
+  onEdit: (r: any) => void; 
+  onDelete: (id: string) => void;
+  onAddToShoppingList: (recipe: any, ingredients: any[]) => void;
+}) {
   const [customMargin, setCustomMargin] = useState(
     recipe.customMargin || recipe.suggestedMargin || getSuggestedMargin(recipe.totalCostPerPortion || 0)
   );
@@ -205,10 +238,15 @@ function RecipeDetailModal({ recipe, onClose, onEdit, onDelete }: { recipe: any;
   };
 
   const handleEditClick = () => {
-      // Pass the recipe AND the loaded ingredients to the edit handler
+      // Pass the recipe AND the loaded ingredients WITH IDs to the edit handler
       onEdit({
           ...recipe,
-          recipeIngredients: recipeIngredients
+          recipeIngredients: recipeIngredients.map(ri => ({
+              id: ri.id, // CRITICAL: Include link ID for deletion
+              ingredientId: ri.ingredient?.id,
+              amount: ri.amount,
+              unit: ri.unit
+          }))
       });
   };
 
@@ -344,6 +382,16 @@ function RecipeDetailModal({ recipe, onClose, onEdit, onDelete }: { recipe: any;
             >
               <Calculator className="w-5 h-5" />
               <span>Kalkulation PDF</span>
+            </button>
+          </div>
+          
+          <div className="flex space-x-3">
+            <button 
+              onClick={() => onAddToShoppingList(recipe, recipeIngredients)}
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 flex items-center justify-center space-x-2"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              <span>Zur Einkaufsliste</span>
             </button>
           </div>
           

@@ -149,18 +149,19 @@ export default function RecipeUpload() {
         }),
       ]);
 
-      // Erstelle RecipeIngredients (nicht als echte Ingredients, nur als Referenzen)
-      // Hier würde man normalerweise auf vorhandene Ingredients matchen
-      for (const ing of parsedRecipe.ingredients) {
-        await db.transact([
-          db.tx.recipeIngredients[crypto.randomUUID()].update({
-            recipeId: recipeId,
-            ingredientId: null, // Kann später gemappt werden
-            amount: ing.amount,
-            unit: ing.unit,
-            name: ing.name,
-          }),
-        ]);
+      // Erstelle RecipeIngredients mit korrekter DB-Struktur
+      // RecipeIngredients haben nur: id, amount, unit + recipe Link
+      // Batch-create für bessere Performance
+      const ingTransactions = parsedRecipe.ingredients.map(ing => {
+        const linkId = crypto.randomUUID();
+        return db.tx.recipeIngredients[linkId].update({
+          amount: ing.amount,
+          unit: ing.unit,
+        }).link({ recipe: recipeId });
+      });
+
+      if (ingTransactions.length > 0) {
+        await db.transact(ingTransactions);
       }
 
       setSuccess(true);

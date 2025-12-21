@@ -29,6 +29,7 @@ const schema = i.graph(
       "imageUrl": i.string().optional(),
       "allergens": i.string().optional(),
       "notes": i.string().optional(),
+      "preparationSteps": i.string().optional(),
       "totalCostPerPortion": i.number().optional(),
       "suggestedMargin": i.number().optional(),
       "customMargin": i.number().optional(),

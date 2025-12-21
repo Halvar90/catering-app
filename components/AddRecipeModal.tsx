@@ -63,14 +63,17 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients, initialDa
          })));
       }
 
-      // Load steps
-      // Assuming preparationSteps is stored as an array of strings in DB or joined string
-      // Adjust based on your DB schema. If it's not in DB, we default to ['']
-      // If your DB schema doesn't have steps yet, we can ignore or add a field.
-      // Let's assume it might be there or we default.
-      // For this example, I'll assume it's not strictly in the schema I saw earlier but good to have.
-      // If it's not in the schema, we can't save it yet, but let's keep the UI state.
-      setPreparationSteps(['']); 
+      // Load preparation steps
+      if (initialData.preparationSteps) {
+        try {
+          const steps = JSON.parse(initialData.preparationSteps);
+          setPreparationSteps(Array.isArray(steps) && steps.length > 0 ? steps : ['']);
+        } catch {
+          setPreparationSteps(['']);
+        }
+      } else {
+        setPreparationSteps(['']);
+      } 
     } else if (isOpen && !initialData) {
       // Reset form
       setName('');
@@ -188,6 +191,7 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients, initialDa
           portions,
           prepTime,
           category,
+          preparationSteps: JSON.stringify(preparationSteps.filter(s => s.trim() !== '')),
           // Only set createdAt if new
           ...(initialData ? {} : { createdAt: new Date().toISOString() }),
           // Always update these on save
@@ -201,27 +205,14 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients, initialDa
 
       // Handle Ingredients
       // Strategy: Delete all existing links for this recipe and recreate them.
-      // This is simpler than diffing.
-      if (initialData) {
-         // We need to know the link IDs to delete them. 
-         // Since we might not have them easily here without querying, 
-         // a better approach for InstantDB might be needed if we can't delete by query.
-         // Assuming we can't easily "delete where recipeId = X", we might need to rely on the parent passing the link IDs
-         // or just add new ones and hope for the best (bad idea).
-         
-         // For now, let's assume we just add/update. 
-         // Ideally, we should unlink removed ingredients.
-         // If we can't unlink easily, we might accumulate garbage links.
-         // Let's try to unlink if we have the info.
-         
-         // If initialData has recipeIngredients with link ids, we can unlink them.
-         if (initialData.recipeIngredients) {
-             initialData.recipeIngredients.forEach((ri: any) => {
-                 if (ri.id) { // Assuming ri.id is the link id
-                     transactions.push(db.tx.recipeIngredients[ri.id].delete());
-                 }
-             });
-         }
+      // This is simpler than diffing and prevents orphaned links.
+      if (initialData && initialData.recipeIngredients) {
+        // Delete all existing recipeIngredient links
+        const deleteTransactions = initialData.recipeIngredients
+          .filter((ri: any) => ri.id) // Only if we have IDs
+          .map((ri: any) => db.tx.recipeIngredients[ri.id].delete());
+        
+        transactions.push(...deleteTransactions);
       }
 
       // Create new links

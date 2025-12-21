@@ -22,8 +22,7 @@
     "recharts": "^3.5.1",
     "tesseract.js": "^6.0.1",
     "unsplash-js": "^7.0.20",
-    "xlsx": "^0.18.5",
-    "zustand": "^4.5.0"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",

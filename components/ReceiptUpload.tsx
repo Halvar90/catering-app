@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Upload, Camera, Loader2, Plus, Trash2, CheckCircle, X, AlertCircle, FileText, Save, Pencil } from 'lucide-react';
 import { db } from '@/lib/instantdb';
-import { tx } from '@instantdb/react';
 
 interface ScannedItem {
   id: string;
@@ -190,7 +189,7 @@ export default function ReceiptUpload() {
   const handleDeleteReceipt = async (id: string) => {
     if (confirm('Möchten Sie diesen Bon wirklich löschen?')) {
       try {
-        await db.transact([tx.receipts[id].delete()]);
+        await db.transact([db.tx.receipts[id].delete()]);
       } catch (err) {
         console.error('Delete error:', err);
         setError('Fehler beim Löschen');
@@ -210,7 +209,7 @@ export default function ReceiptUpload() {
       
       // 1. Save Receipt
       const txs = [
-        tx.receipts[receiptId].update({
+        db.tx.receipts[receiptId].update({
           name: receiptName,
           storeName: receiptData?.storeName || 'Unbekannt',
           totalAmount: scannedItems.reduce((sum, item) => sum + item.totalPrice, 0),
@@ -226,14 +225,14 @@ export default function ReceiptUpload() {
         const currentIds = new Set(scannedItems.map(i => i.id));
         const toDelete = editIngredientsData.ingredients.filter((i: any) => !currentIds.has(i.id));
         toDelete.forEach((i: any) => {
-          txs.push(tx.ingredients[i.id].delete());
+          txs.push(db.tx.ingredients[i.id].delete());
         });
       }
 
       // Update/Create ingredients
       scannedItems.forEach(item => {
         txs.push(
-          tx.ingredients[item.id].update({
+          db.tx.ingredients[item.id].update({
             name: item.name,
             shop: item.shop,
             pricePerUnit: item.pricePerUnit,
