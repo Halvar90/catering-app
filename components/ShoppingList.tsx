@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, Plus, Trash2, ShoppingCart, Store, ArrowUpDown, FileDown } from 'lucide-react';
+import { Check, Plus, Trash2, ShoppingCart, Store, ArrowUpDown, FileDown, X } from 'lucide-react';
 import { db } from '@/lib/instantdb';
 import { formatPrice } from '@/lib/utils';
 import { exportShoppingListToExcel } from '@/lib/export';
@@ -210,44 +210,99 @@ function ShoppingListItem({
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const minSwipeDistance = 50;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(0);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+    const distance = e.targetTouches[0].clientX - touchStart;
+    setSwipeOffset(distance);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) {
+      setSwipeOffset(0);
+      return;
+    }
+
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isRightSwipe && !item.checked) {
+      onToggle();
+    } else if (isLeftSwipe) {
+      setIsDeleting(true);
+      setTimeout(() => {
+        onDelete();
+      }, 300);
+    }
+
+    setSwipeOffset(0);
+    setTouchStart(0);
+    setTouchEnd(0);
+  };
+
   return (
     <div
-      className={`p-4 flex items-center space-x-4 swipeable ${
-        item.checked ? 'bg-gray-50 dark:bg-gray-700/50' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-      }`}
+      className={`relative overflow-hidden ${isDeleting ? 'opacity-0 transition-opacity duration-300' : ''}`}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
-      {/* Checkbox */}
-      <button
-        onClick={onToggle}
-        className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
-          item.checked
-            ? 'bg-green-500 border-green-500'
-            : 'border-gray-300 dark:border-gray-500 hover:border-primary-500'
-        }`}
-      >
-        {item.checked && <Check className="w-5 h-5 text-white" />}
-      </button>
-
-      {/* Item Info */}
-      <div className={`flex-1 ${item.checked ? 'opacity-50' : ''}`}>
-        <div className={`font-semibold dark:text-white ${item.checked ? 'line-through' : ''}`}>
-          {item.ingredient?.name || 'Unbekannt'}
+      {/* Swipe Indicators */}
+      <div className="absolute inset-0 flex items-center justify-between px-6">
+        <div className={`text-green-500 transition-opacity ${swipeOffset > 20 ? 'opacity-100' : 'opacity-0'}`}>
+          ✓ Abhaken
         </div>
-        <div className="text-sm text-gray-600 dark:text-gray-400">
-          {item.amount} {item.unit}
-          {item.estimatedPrice && (
-            <span className="ml-2">• {formatPrice(item.estimatedPrice)}</span>
-          )}
+        <div className={`text-red-500 transition-opacity ${swipeOffset < -20 ? 'opacity-100' : 'opacity-0'}`}>
+          ✗ Löschen
         </div>
       </div>
 
-      {/* Delete */}
-      <button
-        onClick={onDelete}
-        className="flex-shrink-0 p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+      {/* Item */}
+      <div
+        className={`relative p-4 flex items-center space-x-4 bg-white dark:bg-gray-800 transition-transform ${
+          item.checked ? 'opacity-50' : ''
+        }`}
+        style={{
+          transform: `translateX(${Math.max(-100, Math.min(100, swipeOffset))}px)`,
+        }}
       >
-        <Trash2 className="w-5 h-5" />
-      </button>
+        <button
+          onClick={onToggle}
+          className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center ${
+            item.checked ? 'bg-green-500 border-green-500' : 'border-gray-300'
+          }`}
+        >
+          {item.checked && <Check className="w-5 h-5 text-white" />}
+        </button>
+
+        <div className="flex-1">
+          <div className={`font-semibold dark:text-white ${item.checked ? 'line-through' : ''}`}>
+            {item.ingredient?.name || 'Unbekannt'}
+          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            {item.amount} {item.unit}
+            {item.estimatedPrice && (
+              <span className="ml-2">• {formatPrice(item.estimatedPrice)}</span>
+            )}
+          </div>
+        </div>
+
+        <button onClick={onDelete} className="text-gray-400 hover:text-red-500">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
     </div>
   );
 }

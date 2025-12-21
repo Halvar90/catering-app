@@ -29,6 +29,11 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients, initialDa
   const [portions, setPortions] = useState(4);
   const [prepTime, setPrepTime] = useState(30);
   const [category, setCategory] = useState('Hauptgericht');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageOption, setImageOption] = useState<'none' | 'upload' | 'unsplash'>('none');
+  const [unsplashPhotos, setUnsplashPhotos] = useState<any[]>([]);
+  const [searchingImages, setSearchingImages] = useState(false);
+  const [selectedUnsplashPhoto, setSelectedUnsplashPhoto] = useState<any>(null);
 
   // Step 2: Zutaten
   const [recipeIngredients, setRecipeIngredients] = useState<RecipeIngredient[]>([]);
@@ -136,6 +141,30 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients, initialDa
 
   const costPerPortion = calculateCost();
   const suggestedMargin = getSuggestedMargin(costPerPortion);
+
+  const handleSearchUnsplash = async () => {
+    if (!name) {
+      alert('Bitte zuerst Rezeptname eingeben');
+      return;
+    }
+    
+    setSearchingImages(true);
+    try {
+      const response = await fetch('/api/search-recipe-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: name }),
+      });
+      
+      const data = await response.json();
+      setUnsplashPhotos(data.photos || []);
+    } catch (error) {
+      console.error('Unsplash search failed:', error);
+      alert('Bildersuche fehlgeschlagen');
+    } finally {
+      setSearchingImages(false);
+    }
+  };
 
   const canProceed = () => {
     if (step === 1) return name.trim() !== '';
@@ -342,6 +371,124 @@ export default function AddRecipeModal({ isOpen, onClose, ingredients, initialDa
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Rezeptbild
+                </label>
+                
+                {/* Options */}
+                <div className="flex gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setImageOption('upload')}
+                    className={`flex-1 px-3 py-2 border rounded-lg ${
+                      imageOption === 'upload' 
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+                        : 'border-gray-300 dark:border-gray-600'
+                    }`}
+                  >
+                    Eigenes Bild
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageOption('unsplash');
+                      if (unsplashPhotos.length === 0) handleSearchUnsplash();
+                    }}
+                    className={`flex-1 px-3 py-2 border rounded-lg ${
+                      imageOption === 'unsplash' 
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+                        : 'border-gray-300 dark:border-gray-600'
+                    }`}
+                  >
+                    Unsplash Suche
+                  </button>
+                </div>
+
+                {/* Upload Option */}
+                {imageOption === 'upload' && (
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      
+                      const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData,
+                      });
+                      const { url } = await response.json();
+                      setImageUrl(url);
+                    }}
+                    className="w-full"
+                  />
+                )}
+
+                {/* Unsplash Option */}
+                {imageOption === 'unsplash' && (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleSearchUnsplash}
+                      disabled={searchingImages}
+                      className="w-full mb-3 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                    >
+                      {searchingImages ? 'Suche läuft...' : 'Erneut suchen'}
+                    </button>
+                    
+                    <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                      {unsplashPhotos.map((photo) => (
+                        <button
+                          key={photo.id}
+                          type="button"
+                          onClick={() => {
+                            setImageUrl(photo.url);
+                            setSelectedUnsplashPhoto(photo);
+                          }}
+                          className={`relative overflow-hidden rounded-lg border-2 ${
+                            selectedUnsplashPhoto?.id === photo.id 
+                              ? 'border-primary-500' 
+                              : 'border-transparent'
+                          }`}
+                        >
+                          <img 
+                            src={photo.thumb} 
+                            alt="Unsplash preview" 
+                            className="w-full h-24 object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                    
+                    {selectedUnsplashPhoto && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Foto von{' '}
+                        <a 
+                          href={selectedUnsplashPhoto.authorUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          {selectedUnsplashPhoto.author}
+                        </a>
+                        {' '}auf Unsplash
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {/* Vorschau */}
+                {imageUrl && (
+                  <div className="mt-3">
+                    <img src={imageUrl} alt="Preview" className="w-full h-32 object-cover rounded-lg" />
+                  </div>
+                )}
               </div>
             </div>
           )}
